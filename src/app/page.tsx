@@ -42,36 +42,31 @@ export default function HomeBase() {
       setLoading(false);
     }
   }
-
-  return (
-    <main className="flex h-screen bg-[#0a0a0a] text-white font-sans">
+    return (
+    <main className="flex min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans">
       {/* Sidebar */}
-      <aside className="w-20 bg-sky-500 flex flex-col items-center py-4 space-y-6 shadow-lg">
-        {[...Array(7)].map((_, i) => (
+      <aside className="w-20 bg-gradient-to-b from-purple-600 to-blue-600 flex flex-col items-center py-6 space-y-6 shadow-2xl">
+        {[...Array(6)].map((_, i) => (
           <div
             key={i}
-            className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-400 to-blue-600 flex items-center justify-center hover:scale-110 transition"
+            className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
           >
-            <img
-              src={`https://placehold.co/40x40/ffffff/000000?text=${i + 1}`}
-              alt={`icon-${i}`}
-              className="w-6 h-6 opacity-90"
-            />
+            <span className="text-xs font-semibold opacity-80">{i + 1}</span>
           </div>
         ))}
       </aside>
 
       {/* Main Chat Section */}
-      <section className="flex-1 relative flex flex-col">
-        {/* Chat Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <section className="flex-1 flex flex-col items-center justify-between">
+        {/* Chat Scroll Area */}
+        <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
               key={i}
-              className={`max-w-[75%] p-3 rounded-2xl ${
+              className={`max-w-[80%] p-3 rounded-2xl text-sm leading-snug ${
                 msg.role === "user"
-                  ? "bg-gradient-to-br from-fuchsia-500/70 to-blue-600/70 self-end"
-                  : "bg-zinc-900/70 border border-zinc-800 self-start"
+                  ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                  : "bg-neutral-900 border border-neutral-800 text-gray-200"
               }`}
             >
               {msg.content}
@@ -79,7 +74,7 @@ export default function HomeBase() {
           ))}
 
           {loading && (
-            <div className="self-start text-gray-400 italic animate-pulse">
+            <div className="text-gray-500 italic animate-pulse">
               VisuaRealm is thinking...
             </div>
           )}
@@ -87,28 +82,25 @@ export default function HomeBase() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Bottom Input Bar */}
+        {/* Input Area */}
         <form
           onSubmit={sendMessage}
-          className="absolute bottom-8 flex items-center justify-center w-full"
+          className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center"
         >
-          <div className="bg-white/90 text-black rounded-full flex items-center px-6 py-3 w-[400px] max-w-[90%] shadow-xl">
-            <span className="w-5 h-5 bg-gradient-to-r from-blue-600 to-purple-500 rounded-full mr-3"></span>
-
+          <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Talk to VisuaRealm..."
-              className="flex-1 bg-transparent outline-none text-sm text-black placeholder:text-gray-500"
+              className="flex-1 bg-transparent text-sm sm:text-base text-gray-100 placeholder-gray-500 outline-none"
             />
-
             <button
               type="submit"
               disabled={loading}
-              className="w-5 h-5 bg-gradient-to-r from-blue-600 to-purple-500 rounded-full ml-3 flex items-center justify-center text-white text-xs"
+              className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition"
             >
-              ➤
+              Send
             </button>
           </div>
         </form>
