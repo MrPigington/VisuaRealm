@@ -24,7 +24,9 @@ export default function Page() {
     if (!input.trim()) return;
 
     const userMessage: Message = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMessage]);
+    const updatedMessages = [...messages, userMessage];
+
+    setMessages(updatedMessages);
     setInput("");
     setLoading(true);
 
@@ -32,7 +34,7 @@ export default function Page() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ messages: updatedMessages }), // <-- memory-enabled
       });
 
       const data = await res.json();
@@ -79,7 +81,7 @@ export default function Page() {
                   : "bg-neutral-900 border border-neutral-800 text-gray-200"
               }`}
             >
-              {/* Markdown wrapper (fixes TypeScript red underline) */}
+              {/* Markdown renderer */}
               <div className="prose prose-invert max-w-none prose-pre:bg-black/70 prose-pre:p-3 prose-pre:rounded-xl prose-pre:overflow-x-auto prose-code:text-green-400 prose-p:my-2 prose-li:my-1">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {msg.content}
