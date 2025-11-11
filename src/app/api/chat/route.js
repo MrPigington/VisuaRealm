@@ -6,7 +6,7 @@ const client = new OpenAI({
 
 export async function POST(req) {
   try {
-    // Ensure valid JSON
+    // ✅ Parse JSON safely
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
       return new Response(
@@ -21,7 +21,7 @@ export async function POST(req) {
       body = JSON.parse(bodyText);
     } catch {
       return new Response(
-        JSON.stringify({ reply: "⚠️ Invalid JSON." }),
+        JSON.stringify({ reply: "⚠️ Invalid JSON format." }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -34,7 +34,63 @@ export async function POST(req) {
       );
     }
 
-    // 🔥 Core AI logic
+    const userMessage = messages[messages.length - 1].content;
+
+    // 🧠 Step 1: Decide if research is needed
+    const check = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Answer only with 'yes' or 'no'. Does this query require real-time or factual web research (like recent events, news, or statistics)?",
+        },
+        { role: "user", content: userMessage },
+      ],
+    });
+
+    const needsResearch = check.choices?.[0]?.message?.content
+      ?.toLowerCase()
+      .includes("yes");
+
+    let researchSummary = "";
+
+    // 🔍 Step 2: If needed, fetch from DuckDuckGo
+    if (needsResearch) {
+      const search = await fetch(
+        `https://api.duckduckgo.com/?q=${encodeURIComponent(
+          userMessage
+        )}&format=json&kl=en-us`
+      );
+      const data = await search.json();
+
+      const results =
+        data?.RelatedTopics?.filter((t) => t.Text && t.FirstURL)
+          .slice(0, 5)
+          .map((t) => `• [${t.Text}](${t.FirstURL})`)
+          .join("\n") || "No sources found.";
+
+      // Summarize search results neatly
+      const summary = await client.chat.completions.create({
+        model: "gpt-4o-mini",
+        temperature: 0.7,
+        messages: [
+          {
+            role: "system",
+            content: `
+You are a summarizer. Convert raw search data into a short, factual, easy-to-read summary in Markdown. 
+End with a "### Sources" list.
+            `,
+          },
+          { role: "user", content: results },
+        ],
+      });
+
+      researchSummary = summary.choices?.[0]?.message?.content?.trim() || "";
+    }
+
+    // 💬 Step 3: Main AI response
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.7,
@@ -42,20 +98,24 @@ export async function POST(req) {
         {
           role: "system",
           content: `
-You are VisuaRealm — an intelligent and visually refined AI assistant.
-Always respond using Markdown.
-Use fenced code blocks (triple backticks) for any code.
-Keep responses organized, readable, and neatly sectioned like ChatGPT.
+You are VisuaRealm — a refined, visually intelligent assistant.
+Always respond in Markdown.
+Use fenced code blocks (\`\`\`) for any code.
+Be concise, clean, and structured like ChatGPT.
+If research data exists, use it to inform your answer and show it after your main response.
           `,
         },
         ...messages,
+        ...(researchSummary
+          ? [{ role: "assistant", content: `📡 Research Results:\n${researchSummary}` }]
+          : []),
       ],
     });
 
-    let reply = completion.choices?.[0]?.message?.content?.trim() || "";
-    if (!reply) reply = "⚠️ No response received from model.";
+    const reply =
+      completion.choices?.[0]?.message?.content?.trim() ||
+      "⚠️ No response received from model.";
 
-    // ✅ Make sure it always returns valid JSON
     return new Response(JSON.stringify({ reply }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -63,7 +123,9 @@ Keep responses organized, readable, and neatly sectioned like ChatGPT.
   } catch (err) {
     console.error("❌ Chat route error:", err);
     return new Response(
-      JSON.stringify({ reply: "⚠️ Server error. Please try again later." }),
+      JSON.stringify({
+        reply: "⚠️ Server error. Please try again later.",
+      }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
