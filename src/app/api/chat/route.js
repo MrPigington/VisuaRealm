@@ -1,40 +1,33 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export async function POST(req) {
   try {
-    const { message } = await req.json();
+    const body = await req.json();
+    const { messages } = body;
 
-    if (!message || typeof message !== "string") {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return Response.json({ reply: "⚠️ No message provided." }, { status: 400 });
     }
 
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
-      temperature: 0.7,
-      max_tokens: 1200,
       messages: [
         {
           role: "system",
-          content: `
-You are VisuaRealm — reply like GPT but always send clean markdown.
-Use triple backticks for code, never repeat text, no filler like “Certainly”.
-Write concise, readable answers formatted for ReactMarkdown.
-          `,
+          content: "You are VisuaRealm — respond clearly in Markdown, format code properly in boxes.",
         },
-        { role: "user", content: message },
+        ...messages,
       ],
     });
 
-    const reply =
-      completion.choices?.[0]?.message?.content?.trim() || "No response received.";
+    const reply = completion.choices?.[0]?.message?.content?.trim() || "No response.";
     return Response.json({ reply });
   } catch (err) {
-    console.error("Chat route error:", err);
-    return Response.json(
-      { reply: "⚠️ Server error. Try again later." },
-      { status: 500 }
-    );
+    console.error("❌ Chat route error:", err);
+    return Response.json({ reply: "⚠️ Server error. Please try again." }, { status: 500 });
   }
 }
