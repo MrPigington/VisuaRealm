@@ -1,21 +1,15 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req) {
   try {
     const { message } = await req.json();
 
     if (!message || typeof message !== "string") {
-      return Response.json(
-        { reply: "⚠️ No input provided." },
-        { status: 400 }
-      );
+      return Response.json({ reply: "⚠️ No message provided." }, { status: 400 });
     }
 
-    // Call OpenAI with clean format rules
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.7,
@@ -24,15 +18,9 @@ export async function POST(req) {
         {
           role: "system",
           content: `
-You are VisuaRealm, a clear, direct AI assistant. 
-Rules:
-- Respond like GPT at its best — complete thoughts, no half-sentences.  
-- Never duplicate or repeat lines.  
-- Never break markdown or code blocks.  
-- If showing code, show one clean version only.  
-- No “Here is” or “Certainly” filler.  
-- Write in readable paragraphs with good spacing.  
-- End responses cleanly — no cutoff mid-thought.  
+You are VisuaRealm — reply like GPT but always send clean markdown.
+Use triple backticks for code, never repeat text, no filler like “Certainly”.
+Write concise, readable answers formatted for ReactMarkdown.
           `,
         },
         { role: "user", content: message },
@@ -40,12 +28,10 @@ Rules:
     });
 
     const reply =
-      completion.choices?.[0]?.message?.content?.trim() ||
-      "No response received.";
-
+      completion.choices?.[0]?.message?.content?.trim() || "No response received.";
     return Response.json({ reply });
-  } catch (error) {
-    console.error("Chat route error:", error);
+  } catch (err) {
+    console.error("Chat route error:", err);
     return Response.json(
       { reply: "⚠️ Server error. Try again later." },
       { status: 500 }

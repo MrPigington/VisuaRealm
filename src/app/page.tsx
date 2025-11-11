@@ -9,7 +9,7 @@ interface Message {
   content: string;
 }
 
-export default function HomeBase() {
+export default function Page() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -45,10 +45,7 @@ export default function HomeBase() {
       console.error(err);
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "⚠️ Error: Could not reach the API.",
-        },
+        { role: "assistant", content: "⚠️ Error: Could not reach the API." },
       ]);
     } finally {
       setLoading(false);
@@ -69,22 +66,21 @@ export default function HomeBase() {
         ))}
       </aside>
 
-      {/* Main Chat Section */}
+      {/* Chat section */}
       <section className="flex-1 flex flex-col items-center justify-between">
-        {/* Chat Scroll Area */}
+        {/* Scrollable chat */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
               key={i}
-              className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed break-words
-                ${
-                  msg.role === "user"
-                    ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                    : "bg-neutral-900 border border-neutral-800 text-gray-200"
-                }`}
+              className={`group relative w-fit max-w-[80%] whitespace-pre-wrap rounded-2xl text-sm leading-relaxed break-words ${
+                msg.role === "user"
+                  ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                  : "bg-neutral-900 border border-neutral-800 text-gray-200"
+              }`}
             >
-              {/* ReactMarkdown FIXED — no className prop directly */}
-              <div className="prose prose-invert prose-code:text-green-400 prose-pre:bg-black/70 prose-pre:p-3 prose-pre:rounded-xl prose-pre:overflow-x-auto prose-p:my-2 prose-li:my-1">
+              {/* Markdown wrapper (fixes TypeScript red underline) */}
+              <div className="prose prose-invert max-w-none prose-pre:bg-black/70 prose-pre:p-3 prose-pre:rounded-xl prose-pre:overflow-x-auto prose-code:text-green-400 prose-p:my-2 prose-li:my-1">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {msg.content}
                 </ReactMarkdown>
@@ -101,7 +97,7 @@ export default function HomeBase() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Area */}
+        {/* Input */}
         <form
           onSubmit={sendMessage}
           className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center"
