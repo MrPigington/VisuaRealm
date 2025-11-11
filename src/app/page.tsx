@@ -21,7 +21,6 @@ export default function HomeBase() {
     setLoading(true);
 
     try {
-      // ✅ Hit your internal Next.js API route
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -30,7 +29,6 @@ export default function HomeBase() {
 
       const data = await res.json();
       const botMessage = { role: "assistant", content: data.reply || "No response" };
-
       setMessages((prev) => [...prev, botMessage]);
     } catch (err) {
       console.error(err);
@@ -42,7 +40,8 @@ export default function HomeBase() {
       setLoading(false);
     }
   }
-    return (
+
+  return (
     <main className="flex min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans">
       {/* Sidebar */}
       <aside className="w-20 bg-gradient-to-b from-purple-600 to-blue-600 flex flex-col items-center py-6 space-y-6 shadow-2xl">
@@ -63,13 +62,49 @@ export default function HomeBase() {
           {messages.map((msg, i) => (
             <div
               key={i}
-              className={`max-w-[80%] p-3 rounded-2xl text-sm leading-snug ${
+              className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
                 msg.role === "user"
                   ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
                   : "bg-neutral-900 border border-neutral-800 text-gray-200"
               }`}
             >
-              {msg.content}
+              {/* Format GPT responses */}
+              {msg.content.split("\n").map((line, index) => {
+                // Code block detection
+                if (line.trim().startsWith("```")) {
+                  const codeLines = [];
+                  let j = index + 1;
+                  const lines = msg.content.split("\n");
+                  while (j < lines.length && !lines[j].trim().startsWith("```")) {
+                    codeLines.push(lines[j]);
+                    j++;
+                  }
+                  return (
+                    <pre
+                      key={index}
+                      className="bg-black/60 text-green-400 p-3 my-2 rounded-xl overflow-x-auto text-xs sm:text-sm"
+                    >
+                      {codeLines.join("\n")}
+                    </pre>
+                  );
+                }
+
+                // Bullet points
+                if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
+                  return (
+                    <li key={index} className="ml-5 list-disc">
+                      {line.replace(/^[-*]\s*/, "")}
+                    </li>
+                  );
+                }
+
+                // Normal text
+                return (
+                  <p key={index} className="mb-1">
+                    {line}
+                  </p>
+                );
+              })}
             </div>
           ))}
 
