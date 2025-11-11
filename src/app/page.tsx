@@ -1,8 +1,16 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+
+import React, { useState, useRef, useEffect, FormEvent } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
 
 export default function HomeBase() {
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -11,11 +19,11 @@ export default function HomeBase() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function sendMessage(e: React.FormEvent) {
+  async function sendMessage(e: FormEvent) {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const userMessage = { role: "user", content: input };
+    const userMessage: Message = { role: "user", content: input };
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
@@ -28,13 +36,19 @@ export default function HomeBase() {
       });
 
       const data = await res.json();
-      const botMessage = { role: "assistant", content: data.reply || "No response" };
+      const botMessage: Message = {
+        role: "assistant",
+        content: data.reply || "No response",
+      };
       setMessages((prev) => [...prev, botMessage]);
     } catch (err) {
       console.error(err);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: "⚠️ Error: Could not reach the API." },
+        {
+          role: "assistant",
+          content: "⚠️ Error: Could not reach the API.",
+        },
       ]);
     } finally {
       setLoading(false);
@@ -62,49 +76,19 @@ export default function HomeBase() {
           {messages.map((msg, i) => (
             <div
               key={i}
-              className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                msg.role === "user"
-                  ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                  : "bg-neutral-900 border border-neutral-800 text-gray-200"
-              }`}
+              className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed break-words
+                ${
+                  msg.role === "user"
+                    ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                    : "bg-neutral-900 border border-neutral-800 text-gray-200"
+                }`}
             >
-              {/* Format GPT responses */}
-              {msg.content.split("\n").map((line, index) => {
-                // Code block detection
-                if (line.trim().startsWith("```")) {
-                  const codeLines = [];
-                  let j = index + 1;
-                  const lines = msg.content.split("\n");
-                  while (j < lines.length && !lines[j].trim().startsWith("```")) {
-                    codeLines.push(lines[j]);
-                    j++;
-                  }
-                  return (
-                    <pre
-                      key={index}
-                      className="bg-black/60 text-green-400 p-3 my-2 rounded-xl overflow-x-auto text-xs sm:text-sm"
-                    >
-                      {codeLines.join("\n")}
-                    </pre>
-                  );
-                }
-
-                // Bullet points
-                if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
-                  return (
-                    <li key={index} className="ml-5 list-disc">
-                      {line.replace(/^[-*]\s*/, "")}
-                    </li>
-                  );
-                }
-
-                // Normal text
-                return (
-                  <p key={index} className="mb-1">
-                    {line}
-                  </p>
-                );
-              })}
+              {/* ReactMarkdown FIXED — no className prop directly */}
+              <div className="prose prose-invert prose-code:text-green-400 prose-pre:bg-black/70 prose-pre:p-3 prose-pre:rounded-xl prose-pre:overflow-x-auto prose-p:my-2 prose-li:my-1">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {msg.content}
+                </ReactMarkdown>
+              </div>
             </div>
           ))}
 
