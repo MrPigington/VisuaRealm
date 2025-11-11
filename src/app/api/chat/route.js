@@ -6,11 +6,31 @@ const client = new OpenAI({
 
 export async function POST(req) {
   try {
-    const body = await req.json();
-    const { messages } = body;
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      return new Response(
+        JSON.stringify({ reply: "⚠️ Expected JSON input." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
+    const bodyText = await req.text();
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch {
+      return new Response(
+        JSON.stringify({ reply: "⚠️ Invalid JSON." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const messages = body?.messages;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      return Response.json({ reply: "⚠️ No message provided." }, { status: 400 });
+      return new Response(
+        JSON.stringify({ reply: "⚠️ No message provided (empty array)." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const completion = await client.chat.completions.create({
@@ -18,16 +38,26 @@ export async function POST(req) {
       messages: [
         {
           role: "system",
-          content: "You are VisuaRealm — respond clearly in Markdown, format code properly in boxes.",
+          content:
+            "You are VisuaRealm — a friendly, concise, creative AI that answers clearly using Markdown and fenced code blocks for code.",
         },
         ...messages,
       ],
+      temperature: 0.8,
     });
 
-    const reply = completion.choices?.[0]?.message?.content?.trim() || "No response.";
-    return Response.json({ reply });
+    const reply =
+      completion.choices?.[0]?.message?.content?.trim() || "No response.";
+
+    return new Response(JSON.stringify({ reply }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err) {
     console.error("❌ Chat route error:", err);
-    return Response.json({ reply: "⚠️ Server error. Please try again." }, { status: 500 });
+    return new Response(
+      JSON.stringify({ reply: "⚠️ Server error. Please try again later." }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 }
