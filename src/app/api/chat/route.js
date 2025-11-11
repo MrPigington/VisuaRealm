@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-const openai = new OpenAI({
+const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
@@ -8,18 +8,47 @@ export async function POST(req) {
   try {
     const { message } = await req.json();
 
-    const completion = await openai.chat.completions.create({
+    if (!message || typeof message !== "string") {
+      return Response.json(
+        { reply: "⚠️ No input provided." },
+        { status: 400 }
+      );
+    }
+
+    // Call OpenAI with clean format rules
+    const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
+      temperature: 0.7,
+      max_tokens: 1200,
       messages: [
-        { role: "system", content: "You are VisuaRealm, an intelligent creative assistant that helps the user brainstorm ideas visually and textually." },
+        {
+          role: "system",
+          content: `
+You are VisuaRealm, a clear, direct AI assistant. 
+Rules:
+- Respond like GPT at its best — complete thoughts, no half-sentences.  
+- Never duplicate or repeat lines.  
+- Never break markdown or code blocks.  
+- If showing code, show one clean version only.  
+- No “Here is” or “Certainly” filler.  
+- Write in readable paragraphs with good spacing.  
+- End responses cleanly — no cutoff mid-thought.  
+          `,
+        },
         { role: "user", content: message },
       ],
     });
 
-    const reply = completion.choices[0].message.content;
-    return new Response(JSON.stringify({ reply }), { status: 200 });
-  } catch (err) {
-    console.error(err);
-    return new Response(JSON.stringify({ error: "Failed to fetch response" }), { status: 500 });
+    const reply =
+      completion.choices?.[0]?.message?.content?.trim() ||
+      "No response received.";
+
+    return Response.json({ reply });
+  } catch (error) {
+    console.error("Chat route error:", error);
+    return Response.json(
+      { reply: "⚠️ Server error. Try again later." },
+      { status: 500 }
+    );
   }
 }
