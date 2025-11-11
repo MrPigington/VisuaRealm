@@ -31,10 +31,11 @@ export default function Page() {
     setLoading(true);
 
     try {
+      // send full conversation for memory
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updatedMessages }), // <-- memory-enabled
+        body: JSON.stringify({ messages: updatedMessages }), // ✅ correct payload
       });
 
       const data = await res.json();
@@ -44,7 +45,7 @@ export default function Page() {
       };
       setMessages((prev) => [...prev, botMessage]);
     } catch (err) {
-      console.error(err);
+      console.error("API error:", err);
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: "⚠️ Error: Could not reach the API." },
@@ -81,7 +82,6 @@ export default function Page() {
                   : "bg-neutral-900 border border-neutral-800 text-gray-200"
               }`}
             >
-              {/* Markdown renderer */}
               <div className="prose prose-invert max-w-none prose-pre:bg-black/70 prose-pre:p-3 prose-pre:rounded-xl prose-pre:overflow-x-auto prose-code:text-green-400 prose-p:my-2 prose-li:my-1">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {msg.content}
