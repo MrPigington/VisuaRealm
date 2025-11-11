@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import ProfileMenu from "@/components/ProfileMenu"; // ← new import
 
 interface Message {
   role: "user" | "assistant";
@@ -31,11 +32,10 @@ export default function Page() {
     setLoading(true);
 
     try {
-      // send full conversation for memory
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updatedMessages }), // ✅ correct payload
+        body: JSON.stringify({ messages: updatedMessages }),
       });
 
       const data = await res.json();
@@ -56,7 +56,7 @@ export default function Page() {
   }
 
   return (
-    <main className="flex min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans">
+    <main className="flex min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative">
       {/* Sidebar */}
       <aside className="w-20 bg-gradient-to-b from-purple-600 to-blue-600 flex flex-col items-center py-6 space-y-6 shadow-2xl">
         {[...Array(6)].map((_, i) => (
@@ -69,9 +69,14 @@ export default function Page() {
         ))}
       </aside>
 
-      {/* Chat section */}
+      {/* Profile Button (top-right corner) */}
+      <div className="absolute top-4 right-4 z-50">
+        <ProfileMenu />
+      </div>
+
+      {/* Chat Section */}
       <section className="flex-1 flex flex-col items-center justify-between">
-        {/* Scrollable chat */}
+        {/* Scrollable Chat */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
