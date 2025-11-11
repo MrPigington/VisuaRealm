@@ -6,6 +6,7 @@ const client = new OpenAI({
 
 export async function POST(req) {
   try {
+    // Ensure valid JSON
     const contentType = req.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
       return new Response(
@@ -28,27 +29,33 @@ export async function POST(req) {
     const messages = body?.messages;
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
       return new Response(
-        JSON.stringify({ reply: "⚠️ No message provided (empty array)." }),
+        JSON.stringify({ reply: "⚠️ No messages found." }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
+    // 🔥 Core AI logic
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
+      temperature: 0.7,
       messages: [
         {
           role: "system",
-          content:
-            "You are VisuaRealm — a friendly, concise, creative AI that answers clearly using Markdown and fenced code blocks for code.",
+          content: `
+You are VisuaRealm — an intelligent and visually refined AI assistant.
+Always respond using Markdown.
+Use fenced code blocks (triple backticks) for any code.
+Keep responses organized, readable, and neatly sectioned like ChatGPT.
+          `,
         },
         ...messages,
       ],
-      temperature: 0.8,
     });
 
-    const reply =
-      completion.choices?.[0]?.message?.content?.trim() || "No response.";
+    let reply = completion.choices?.[0]?.message?.content?.trim() || "";
+    if (!reply) reply = "⚠️ No response received from model.";
 
+    // ✅ Make sure it always returns valid JSON
     return new Response(JSON.stringify({ reply }), {
       status: 200,
       headers: { "Content-Type": "application/json" },

@@ -2,8 +2,9 @@
 
 import React, { useState, useRef, useEffect, FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import ProfileMenu from "@/components/ProfileMenu"; // ← new import
+import ProfileMenu from "@/components/ProfileMenu";
 
 interface Message {
   role: "user" | "assistant";
@@ -26,7 +27,6 @@ export default function Page() {
 
     const userMessage: Message = { role: "user", content: input };
     const updatedMessages = [...messages, userMessage];
-
     setMessages(updatedMessages);
     setInput("");
     setLoading(true);
@@ -55,6 +55,27 @@ export default function Page() {
     }
   }
 
+  const markdownComponents: Components = {
+    code(props) {
+      const { className, children } = props as {
+        className?: string;
+        children?: React.ReactNode;
+      };
+      const match = /language-(\w+)/.exec(className || "");
+      const isBlock = !!match;
+
+      return isBlock ? (
+        <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
+          <code>{String(children).replace(/\n$/, "")}</code>
+        </pre>
+      ) : (
+        <code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">
+          {children}
+        </code>
+      );
+    },
+  };
+
   return (
     <main className="flex min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative">
       {/* Sidebar */}
@@ -69,29 +90,29 @@ export default function Page() {
         ))}
       </aside>
 
-      {/* Profile Button (top-right corner) */}
+      {/* Profile Button */}
       <div className="absolute top-4 right-4 z-50">
         <ProfileMenu />
       </div>
 
       {/* Chat Section */}
       <section className="flex-1 flex flex-col items-center justify-between">
-        {/* Scrollable Chat */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
               key={i}
-              className={`group relative w-fit max-w-[80%] whitespace-pre-wrap rounded-2xl text-sm leading-relaxed break-words ${
+              className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed break-words shadow-lg transition ${
                 msg.role === "user"
                   ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
                   : "bg-neutral-900 border border-neutral-800 text-gray-200"
               }`}
             >
-              <div className="prose prose-invert max-w-none prose-pre:bg-black/70 prose-pre:p-3 prose-pre:rounded-xl prose-pre:overflow-x-auto prose-code:text-green-400 prose-p:my-2 prose-li:my-1">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {msg.content}
-                </ReactMarkdown>
-              </div>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownComponents}
+              >
+                {msg.content}
+              </ReactMarkdown>
             </div>
           ))}
 
