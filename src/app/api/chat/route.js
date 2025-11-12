@@ -26,15 +26,15 @@ export async function POST(req) {
       );
     }
 
-    const messages = body?.messages;
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    const messages = body?.messages || [];
+    if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(
         JSON.stringify({ reply: "⚠️ No messages found." }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const userMessage = messages[messages.length - 1].content;
+    const userMessage = messages[messages.length - 1]?.content || "";
 
     // 🧠 Step 1: Decide if research is needed
     const check = await client.chat.completions.create({
@@ -50,13 +50,12 @@ export async function POST(req) {
       ],
     });
 
-    const needsResearch = check.choices?.[0]?.message?.content
-      ?.toLowerCase()
-      .includes("yes");
-
+    const checkText =
+      check.choices?.[0]?.message?.content?.toLowerCase() || "";
+    const needsResearch = checkText.includes("yes");
     let researchSummary = "";
 
-    // 🔍 Step 2: If needed, fetch from DuckDuckGo
+    // 🔍 Step 2: Perform DuckDuckGo search if needed
     if (needsResearch) {
       const search = await fetch(
         `https://api.duckduckgo.com/?q=${encodeURIComponent(
@@ -80,17 +79,17 @@ export async function POST(req) {
             role: "system",
             content: `
 You are a summarizer. Convert raw search data into a short, factual, easy-to-read summary in Markdown. 
-End with a "### Sources" list.
-            `,
+End with a "### Sources" list.`,
           },
           { role: "user", content: results },
         ],
       });
 
-      researchSummary = summary.choices?.[0]?.message?.content?.trim() || "";
+      researchSummary =
+        summary.choices?.[0]?.message?.content?.trim() || "";
     }
 
-    // 💬 Step 3: Main AI response
+    // 💬 Step 3: Generate final AI response
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.7,
@@ -102,8 +101,7 @@ You are VisuaRealm — a refined, visually intelligent assistant.
 Always respond in Markdown.
 Use fenced code blocks (\`\`\`) for any code.
 Be concise, clean, and structured like ChatGPT.
-If research data exists, use it to inform your answer and show it after your main response.
-          `,
+If research data exists, use it to inform your answer and show it after your main response.`,
         },
         ...messages,
         ...(researchSummary

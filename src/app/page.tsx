@@ -15,6 +15,7 @@ export default function Page() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,19 +24,35 @@ export default function Page() {
 
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() && !file) return;
 
-    const userMessage: Message = { role: "user", content: input };
+    const userMessage: Message = {
+      role: "user",
+      content: file ? `📎 Sent file: ${file.name}` : input,
+    };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput("");
     setLoading(true);
 
+    let fileData: string | null = null;
+    if (file) {
+      const reader = new FileReader();
+      fileData = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+    }
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updatedMessages }),
+        body: JSON.stringify({
+          messages: updatedMessages,
+          fileContent: fileData,
+          fileName: file?.name || null,
+        }),
       });
 
       const data = await res.json();
@@ -52,6 +69,7 @@ export default function Page() {
       ]);
     } finally {
       setLoading(false);
+      setFile(null);
     }
   }
 
@@ -125,11 +143,27 @@ export default function Page() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input */}
+        {/* File Upload + Input */}
         <form
           onSubmit={sendMessage}
-          className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center"
+          className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex flex-col items-center gap-3"
         >
+          {/* File Drop Area */}
+          <label className="w-full max-w-2xl flex flex-col items-center justify-center border border-dashed border-neutral-700 rounded-xl p-3 bg-neutral-800/60 hover:bg-neutral-800 cursor-pointer text-gray-400 hover:text-gray-200 text-sm transition">
+            {file ? (
+              <p>📎 Attached: {file.name}</p>
+            ) : (
+              <p>📁 Click or drop a file to upload</p>
+            )}
+            <input
+              type="file"
+              className="hidden"
+              accept=".png,.jpg,.jpeg,.txt,.md,.js,.ts,.tsx,.pdf"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+            />
+          </label>
+
+          {/* Chat Input */}
           <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
             <input
               type="text"
