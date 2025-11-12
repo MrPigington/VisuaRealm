@@ -9,6 +9,7 @@ import ProfileMenu from "@/components/ProfileMenu";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  fileUrl?: string;
 }
 
 export default function Page() {
@@ -26,9 +27,13 @@ export default function Page() {
     e.preventDefault();
     if (!input.trim() && !file) return;
 
+    // Create local preview URL if file exists
+    const fileUrl = file ? URL.createObjectURL(file) : undefined;
+
     const userMessage: Message = {
       role: "user",
-      content: input || (file ? `📎 Uploaded: ${file.name}` : ""),
+      content: input || (file ? "📎 Uploaded an image:" : ""),
+      fileUrl,
     };
 
     const updatedMessages = [...messages, userMessage];
@@ -43,6 +48,7 @@ export default function Page() {
     try {
       const res = await fetch("/api/chat", { method: "POST", body: formData });
       const data = await res.json();
+
       const botMessage: Message = { role: "assistant", content: data.reply };
       setMessages((prev) => [...prev, botMessage]);
     } catch (err) {
@@ -93,7 +99,7 @@ export default function Page() {
 
       {/* Chat Section */}
       <section className="flex-1 flex flex-col items-center justify-between">
-        {/* Chat Messages */}
+        {/* Messages */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
@@ -107,9 +113,20 @@ export default function Page() {
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {msg.content}
               </ReactMarkdown>
+
+              {/* 🖼 Image Preview */}
+              {msg.fileUrl && (
+                <img
+                  src={msg.fileUrl}
+                  alt="Uploaded preview"
+                  className="mt-2 rounded-lg max-w-full max-h-64 object-contain border border-neutral-700"
+                />
+              )}
             </div>
           ))}
-          {loading && <div className="text-gray-500 italic animate-pulse">VisuaRealm is thinking...</div>}
+          {loading && (
+            <div className="text-gray-500 italic animate-pulse">VisuaRealm is thinking...</div>
+          )}
           <div ref={chatEndRef} />
         </div>
 
@@ -119,7 +136,6 @@ export default function Page() {
           className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center"
         >
           <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg overflow-visible relative">
-            
             {/* 📎 Upload Button */}
             <div className="relative flex items-center">
               <input
@@ -127,7 +143,9 @@ export default function Page() {
                 id="file-upload"
                 accept="image/*"
                 className="hidden"
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setFile(e.target.files?.[0] || null)
+                }
               />
               <label
                 htmlFor="file-upload"
