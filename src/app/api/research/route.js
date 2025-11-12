@@ -1,16 +1,17 @@
 import OpenAI from "openai";
+import { promises as fs } from "fs";
+
+export const runtime = "nodejs"; // ✅ Use Node instead of Edge
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-export const runtime = "edge"; // ✅ Speeds up image parsing on Vercel
-
 export async function POST(req) {
   try {
     const contentType = req.headers.get("content-type") || "";
 
-    // 🟣 Handle multipart (image upload)
+    // 🟣 Handle image upload (multipart)
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const messages = JSON.parse(formData.get("messages") || "[]");
@@ -23,34 +24,27 @@ export async function POST(req) {
         });
       }
 
-      // ✅ Validate image size (under ~10 MB)
-      if (file.size > 10 * 1024 * 1024) {
-        return new Response(
-          JSON.stringify({ reply: "⚠️ Image too large. Try a smaller one (<10MB)." }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
-        );
-      }
-
-      // Convert to base64
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const mimeType = file.type || "image/png";
+      // ✅ Read the file into base64
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
       const base64 = buffer.toString("base64");
+      const mimeType = file.type || "image/png";
       const imageData = `data:${mimeType};base64,${base64}`;
 
-      // 🧠 GPT Vision
+      // 🔍 Ask GPT to analyze the image
       const completion = await client.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
             content:
-              "You are VisuaRealm — a helpful assistant that can analyze and describe uploaded images in detail. Use Markdown and stay concise.",
+              "You are VisuaRealm — an AI assistant that can analyze and describe uploaded images. Be concise and respond in Markdown.",
           },
           ...messages,
           {
             role: "user",
             content: [
-              { type: "text", text: "Please analyze this image and explain it briefly." },
+              { type: "text", text: "Please analyze this image and describe what you see." },
               { type: "image_url", image_url: imageData },
             ],
           },
@@ -59,7 +53,7 @@ export async function POST(req) {
 
       const reply =
         completion.choices?.[0]?.message?.content?.trim() ||
-        "⚠️ No analysis could be generated.";
+        "⚠️ Could not analyze image.";
 
       return new Response(JSON.stringify({ reply }), {
         status: 200,
@@ -67,7 +61,7 @@ export async function POST(req) {
       });
     }
 
-    // 🟢 Handle JSON (text-only)
+    // 🟢 Handle text-only messages
     if (contentType.includes("application/json")) {
       const { messages } = await req.json();
 
@@ -78,7 +72,7 @@ export async function POST(req) {
           {
             role: "system",
             content:
-              "You are VisuaRealm — an intelligent, expressive assistant. Always respond in Markdown and structure clearly.",
+              "You are VisuaRealm — an intelligent, expressive assistant. Always respond in Markdown and structured paragraphs.",
           },
           ...messages,
         ],
@@ -100,7 +94,7 @@ export async function POST(req) {
     console.error("❌ Chat route error:", err);
     return new Response(
       JSON.stringify({
-        reply: "⚠️ Server error — AI couldn’t process your message. Try again.",
+        reply: "⚠️ Server error — AI couldn’t process the image. Try again.",
       }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
