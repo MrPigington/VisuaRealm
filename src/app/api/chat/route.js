@@ -6,90 +6,80 @@ const client = new OpenAI({
 
 export async function POST(req) {
   try {
-    // ✅ Parse JSON safely
     const contentType = req.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) {
-      return new Response(
-        JSON.stringify({ reply: "⚠️ Expected JSON input." }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
+    const isMultipart = contentType.includes("multipart/form-data");
+
+    let messages = [];
+    let file = null;
+
+    if (isMultipart) {
+      const formData = await req.formData();
+      const fileData = formData.get("file");
+      const msgData = formData.get("messages");
+      if (msgData) messages = JSON.parse(msgData);
+      if (fileData && fileData.size > 0) file = fileData;
+    } else {
+      const body = await req.json();
+      messages = body?.messages || [];
     }
 
-    const bodyText = await req.text();
-    let body;
-    try {
-      body = JSON.parse(bodyText);
-    } catch {
-      return new Response(
-        JSON.stringify({ reply: "⚠️ Invalid JSON format." }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const messages = body?.messages || [];
     if (!Array.isArray(messages) || messages.length === 0) {
       return new Response(
-        JSON.stringify({ reply: "⚠️ No messages found." }),
+        JSON.stringify({ reply: "⚠️ No messages provided." }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
 
     const userMessage = messages[messages.length - 1]?.content || "";
 
-    // 🧠 Step 1: Decide if research is needed
-    const check = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Answer only with 'yes' or 'no'. Does this query require real-time or factual web research (like recent events, news, or statistics)?",
-        },
-        { role: "user", content: userMessage },
-      ],
-    });
+    // 🔍 If there’s a file, describe or summarize it
+    let fileContext = "";
+    if (file) {
+      const mimeType = file.type || "application/octet-stream";
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString("base64");
 
-    const checkText =
-      check.choices?.[0]?.message?.content?.toLowerCase() || "";
-    const needsResearch = checkText.includes("yes");
-    let researchSummary = "";
-
-    // 🔍 Step 2: Perform DuckDuckGo search if needed
-    if (needsResearch) {
-      const search = await fetch(
-        `https://api.duckduckgo.com/?q=${encodeURIComponent(
-          userMessage
-        )}&format=json&kl=en-us`
-      );
-      const data = await search.json();
-
-      const results =
-        data?.RelatedTopics?.filter((t) => t.Text && t.FirstURL)
-          .slice(0, 5)
-          .map((t) => `• [${t.Text}](${t.FirstURL})`)
-          .join("\n") || "No sources found.";
-
-      // Summarize search results neatly
-      const summary = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        temperature: 0.7,
-        messages: [
-          {
-            role: "system",
-            content: `
-You are a summarizer. Convert raw search data into a short, factual, easy-to-read summary in Markdown. 
-End with a "### Sources" list.`,
-          },
-          { role: "user", content: results },
-        ],
-      });
-
-      researchSummary =
-        summary.choices?.[0]?.message?.content?.trim() || "";
+      if (mimeType.startsWith("image/")) {
+        // 🧠 Use GPT-4o vision to describe the image
+        const visionRes = await client.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Describe and analyze this image clearly." },
+                {
+                  type: "image_url",
+                  image_url: `data:${mimeType};base64,${base64}`,
+                },
+              ],
+            },
+          ],
+        });
+        fileContext =
+          visionRes.choices?.[0]?.message?.content?.trim() ||
+          "⚠️ Could not analyze image.";
+      } else {
+        // 🧠 For text/doc files — extract and summarize content
+        const textContent = Buffer.from(base64, "base64").toString("utf-8").slice(0, 2000);
+        const textSummary = await client.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Summarize this file content in a short, readable way. Detect language automatically.",
+            },
+            { role: "user", content: textContent },
+          ],
+        });
+        fileContext =
+          textSummary.choices?.[0]?.message?.content?.trim() ||
+          "⚠️ Could not summarize file.";
+      }
     }
 
-    // 💬 Step 3: Generate final AI response
+    // 🧠 Core response logic
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.7,
@@ -97,22 +87,22 @@ End with a "### Sources" list.`,
         {
           role: "system",
           content: `
-You are VisuaRealm — a refined, visually intelligent assistant.
+You are VisuaRealm — a refined, visually intelligent AI assistant.
 Always respond in Markdown.
-Use fenced code blocks (\`\`\`) for any code.
-Be concise, clean, and structured like ChatGPT.
-If research data exists, use it to inform your answer and show it after your main response.`,
+Use code blocks (""") for code.
+Be concise, structured, and helpful.
+If an image or file context is provided, reference it naturally in your answer.`,
         },
-        ...messages,
-        ...(researchSummary
-          ? [{ role: "assistant", content: `📡 Research Results:\n${researchSummary}` }]
+        ...(fileContext
+          ? [{ role: "assistant", content: `📎 File analysis:\n${fileContext}` }]
           : []),
+        ...messages,
       ],
     });
 
     const reply =
       completion.choices?.[0]?.message?.content?.trim() ||
-      "⚠️ No response received from model.";
+      "⚠️ No response received.";
 
     return new Response(JSON.stringify({ reply }), {
       status: 200,
@@ -121,9 +111,7 @@ If research data exists, use it to inform your answer and show it after your mai
   } catch (err) {
     console.error("❌ Chat route error:", err);
     return new Response(
-      JSON.stringify({
-        reply: "⚠️ Server error. Please try again later.",
-      }),
+      JSON.stringify({ reply: "⚠️ Server error. Please try again later." }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }

@@ -1,21 +1,22 @@
 "use client";
 
-import React, { useState, useRef, useEffect, FormEvent } from "react";
+import React, { useState, useRef, useEffect, FormEvent, ChangeEvent } from "react";
 import ReactMarkdown from "react-markdown";
-import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Components } from "react-markdown";
 import ProfileMenu from "@/components/ProfileMenu";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  fileUrl?: string;
 }
 
 export default function Page() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,38 +29,25 @@ export default function Page() {
 
     const userMessage: Message = {
       role: "user",
-      content: file ? `📎 Sent file: ${file.name}` : input,
+      content: input || (file ? `📎 Uploaded file: ${file.name}` : ""),
     };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput("");
     setLoading(true);
 
-    let fileData: string | null = null;
-    if (file) {
-      const reader = new FileReader();
-      fileData = await new Promise<string>((resolve) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.readAsDataURL(file);
-      });
-    }
+    const formData = new FormData();
+    formData.append("messages", JSON.stringify(updatedMessages));
+    if (file) formData.append("file", file);
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: updatedMessages,
-          fileContent: fileData,
-          fileName: file?.name || null,
-        }),
+        body: formData,
       });
 
       const data = await res.json();
-      const botMessage: Message = {
-        role: "assistant",
-        content: data.reply || "No response",
-      };
+      const botMessage: Message = { role: "assistant", content: data.reply };
       setMessages((prev) => [...prev, botMessage]);
     } catch (err) {
       console.error("API error:", err);
@@ -68,28 +56,20 @@ export default function Page() {
         { role: "assistant", content: "⚠️ Error: Could not reach the API." },
       ]);
     } finally {
-      setLoading(false);
       setFile(null);
+      setLoading(false);
     }
   }
 
   const markdownComponents: Components = {
-    code(props) {
-      const { className, children } = props as {
-        className?: string;
-        children?: React.ReactNode;
-      };
+    code({ className, children }) {
       const match = /language-(\w+)/.exec(className || "");
-      const isBlock = !!match;
-
-      return isBlock ? (
+      return match ? (
         <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
           <code>{String(children).replace(/\n$/, "")}</code>
         </pre>
       ) : (
-        <code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">
-          {children}
-        </code>
+        <code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">{children}</code>
       );
     },
   };
@@ -99,16 +79,13 @@ export default function Page() {
       {/* Sidebar */}
       <aside className="w-20 bg-gradient-to-b from-purple-600 to-blue-600 flex flex-col items-center py-6 space-y-6 shadow-2xl">
         {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
-          >
+          <div key={i} className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition">
             <span className="text-xs font-semibold opacity-80">{i + 1}</span>
           </div>
         ))}
       </aside>
 
-      {/* Profile Button */}
+      {/* Profile */}
       <div className="absolute top-4 right-4 z-50">
         <ProfileMenu />
       </div>
@@ -125,46 +102,29 @@ export default function Page() {
                   : "bg-neutral-900 border border-neutral-800 text-gray-200"
               }`}
             >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={markdownComponents}
-              >
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {msg.content}
               </ReactMarkdown>
             </div>
           ))}
-
-          {loading && (
-            <div className="text-gray-500 italic animate-pulse">
-              VisuaRealm is thinking...
-            </div>
-          )}
-
+          {loading && <div className="text-gray-500 italic animate-pulse">VisuaRealm is thinking...</div>}
           <div ref={chatEndRef} />
         </div>
 
-        {/* File Upload + Input */}
-        <form
-          onSubmit={sendMessage}
-          className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex flex-col items-center gap-3"
-        >
-          {/* File Drop Area */}
-          <label className="w-full max-w-2xl flex flex-col items-center justify-center border border-dashed border-neutral-700 rounded-xl p-3 bg-neutral-800/60 hover:bg-neutral-800 cursor-pointer text-gray-400 hover:text-gray-200 text-sm transition">
-            {file ? (
-              <p>📎 Attached: {file.name}</p>
-            ) : (
-              <p>📁 Click or drop a file to upload</p>
-            )}
+        {/* Input + File Upload */}
+        <form onSubmit={sendMessage} className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center">
+          <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
             <input
               type="file"
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)}
               className="hidden"
-              accept=".png,.jpg,.jpeg,.txt,.md,.js,.ts,.tsx,.pdf"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              id="file-upload"
             />
-          </label>
+            <label htmlFor="file-upload" className="cursor-pointer text-gray-400 hover:text-white transition">
+              📎
+            </label>
+            {file && <span className="text-xs text-gray-400 truncate max-w-[100px]">{file.name}</span>}
 
-          {/* Chat Input */}
-          <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
             <input
               type="text"
               value={input}
