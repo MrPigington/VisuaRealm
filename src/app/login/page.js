@@ -1,44 +1,49 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
+import { supabase } from '../../lib/supabaseClient' // ✅ adjust if your path differs
 
 export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [mode, setMode] = useState('signin') // 'signin' or 'signup'
+  const [mode, setMode] = useState('signin') // toggle between sign-in / sign-up
 
-  // If already logged in, redirect to chat
+  // 🔁 Auto-redirect if user already logged in
   useEffect(() => {
     const checkUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) router.push('/chat')
+      const { data } = await supabase.auth.getUser()
+      if (data?.user) router.push('/chat')
     }
     checkUser()
   }, [router])
 
-  // --- AUTH FUNCTIONS ---
+  // 🔐 Handle sign-in
   async function handleSignIn() {
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
     setLoading(false)
     if (error) alert(error.message)
     else router.push('/chat')
   }
 
+  // 🪪 Handle sign-up
   async function handleSignUp() {
     setLoading(true)
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    })
     setLoading(false)
     if (error) alert(error.message)
     else alert('Account created! Check your email for verification.')
   }
 
-  // --- UI ---
+  // 💻 UI
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-sm bg-white shadow-lg rounded-xl p-8">
@@ -51,14 +56,14 @@ export default function LoginPage() {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full border border-gray-300 p-2 rounded mb-3"
+          className="w-full border border-gray-300 p-2 rounded mb-3 focus:outline-none focus:ring focus:ring-blue-200"
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full border border-gray-300 p-2 rounded mb-4"
+          className="w-full border border-gray-300 p-2 rounded mb-4 focus:outline-none focus:ring focus:ring-blue-200"
         />
 
         <button
