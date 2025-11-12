@@ -161,15 +161,23 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Input */}
-      <form onSubmit={sendMessage} className="fixed bottom-[60px] left-0 right-0 flex justify-center bg-neutral-900/95 border-t border-neutral-800 px-4 py-3 z-40">
-        <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
-          <label htmlFor="file-upload" className="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200">📎</label>
-          <input id="file-upload" type="file" accept="image/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)} />
-          <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Talk to VisuaRealm..." className="flex-1 bg-transparent text-sm text-gray-100 placeholder-gray-500 outline-none" />
-          <button type="submit" disabled={loading} className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition">{loading ? "..." : "Send"}</button>
-        </div>
-      </form>
+   {/* Input */}
+<form onSubmit={sendMessage} className="fixed bottom-[60px] left-0 right-0 flex justify-center bg-neutral-900/95 border-t border-neutral-800 px-4 py-3 z-40">
+  <div className="w-full max-w-2xl flex flex-col gap-2">
+    {file && (
+      <div className="relative w-32 h-32">
+        <img src={URL.createObjectURL(file)} alt="preview" className="w-full h-full object-cover rounded-md" />
+        <button type="button" onClick={() => setFile(null)} className="absolute top-1 right-1 bg-red-500/70 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600">×</button>
+      </div>
+    )}
+    <div className="flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
+      <label htmlFor="file-upload" className="cursor-pointer w-9 h-9 flex items-center justify-center rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200">📎</label>
+      <input id="file-upload" type="file" accept="image/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)} />
+      <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Talk to VisuaRealm..." className="flex-1 bg-transparent text-sm text-gray-100 placeholder-gray-500 outline-none" />
+      <button type="submit" disabled={loading} className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition">{loading ? "..." : "Send"}</button>
+    </div>
+  </div>
+</form>
 
       {/* Notes Toggle */}
       <button onClick={() => setShowNotes(p => !p)} className="fixed bottom-6 right-4 z-[999] bg-gradient-to-r from-green-400 to-emerald-600 text-black px-4 py-2 rounded-full font-semibold hover:opacity-90 shadow-lg">
