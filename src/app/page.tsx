@@ -74,15 +74,13 @@ export default function Page() {
       const reply = data.reply || "";
       const { main, recap, urls } = splitResponse(reply);
 
-      // Add main message
+      // Main response
       if (main) setMessages(prev => [...prev, { role: "assistant", content: main }]);
 
       // Interactive Quick Recap bubble
-      if (recap) {
-        setMessages(prev => [...prev, { role: "assistant", content: recap, type: "recap" }]);
-      }
+      if (recap) setMessages(prev => [...prev, { role: "assistant", content: recap, type: "recap" }]);
 
-      // Resource links bubble
+      // Resource links as separate bubble
       if (urls.length > 0) {
         const linksText = "🔗 Resource Links:\n" + urls.map(u => `- [${u}](${u})`).join("\n");
         setMessages(prev => [...prev, { role: "assistant", content: linksText, type: "recap" }]);
@@ -97,11 +95,7 @@ export default function Page() {
   }
 
   // --- Notes logic ---
-  function addNote() {
-    const id = Date.now();
-    setNotes([...notes, { id, title: `note-${notes.length + 1}.txt`, content: "", editing: false }]);
-    setActiveId(id);
-  }
+  function addNote() { const id = Date.now(); setNotes([...notes, { id, title: `note-${notes.length + 1}.txt`, content: "", editing: false }]); setActiveId(id); }
   function updateNoteContent(value: string) { setNotes(notes.map(n => (n.id === activeId ? { ...n, content: value } : n))); }
   function renameNote(id: number, newTitle: string) { setNotes(notes.map(n => (n.id === activeId ? { ...n, title: newTitle, editing: false } : n))); }
   function removeNote(id: number) { setNotes(notes.filter(n => n.id !== id)); if (activeId === id && notes.length > 1) setActiveId(notes[0].id); }
@@ -119,13 +113,8 @@ export default function Page() {
   const markdownComponents: Components = {
     code({ className, children }) {
       const match = /language-(\w+)/.exec(className || "");
-      return match ? (
-        <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
-          <code>{String(children).replace(/\n$/, "")}</code>
-        </pre>
-      ) : (
-        <code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">{children}</code>
-      );
+      return match ? (<pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2"><code>{String(children).replace(/\n$/, "")}</code></pre>) :
+        (<code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">{children}</code>);
     }
   };
 
@@ -139,14 +128,8 @@ export default function Page() {
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
               <div
-                className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-lg ${
-                  msg.role === "user"
-                    ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                    : msg.type === "recap"
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-500 border border-blue-400 text-white hover:scale-105 transition cursor-pointer"
-                    : "bg-neutral-900 border border-neutral-800 text-gray-200"
-                }`}
-                onClick={() => { if(msg.type === "recap") navigator.clipboard.writeText(msg.content) }}
+                className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-lg ${msg.role === "user" ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white" : msg.type === "recap" ? "bg-gradient-to-r from-blue-600 to-cyan-500 border border-blue-400 text-white hover:scale-105 transition cursor-pointer" : "bg-neutral-900 border border-neutral-800 text-gray-200"}`}
+                onClick={() => { if (msg.type === "recap") navigator.clipboard.writeText(msg.content) }}
               >
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.content}</ReactMarkdown>
                 {msg.fileUrl && <img src={msg.fileUrl} className="mt-2 max-w-full rounded-md" />}
@@ -177,22 +160,15 @@ export default function Page() {
       </form>
 
       {/* Notes Toggle & Panel */}
-      <button onClick={() => setShowNotes(p => !p)} className="fixed bottom-6 right-4 z-[999] bg-gradient-to-r from-green-400 to-emerald-600 text-black px-4 py-2 rounded-full font-semibold hover:opacity-90 shadow-lg">
-        {showNotes ? "🧠 Close Notes" : "📂 Notes"}
-      </button>
+      <button onClick={() => setShowNotes(p => !p)} className="fixed bottom-6 right-4 z-[999] bg-gradient-to-r from-green-400 to-emerald-600 text-black px-4 py-2 rounded-full font-semibold hover:opacity-90 shadow-lg">{showNotes ? "🧠 Close Notes" : "📂 Notes"}</button>
       <AnimatePresence>
         {showNotes && (
-          <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ duration: 0.25 }}
-            className="fixed bottom-20 right-4 w-[90%] sm:w-[650px] h-[360px] bg-black/90 border border-green-600/50 rounded-xl shadow-lg font-mono text-green-400 flex flex-col z-50">
+          <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ duration: 0.25 }} className="fixed bottom-20 right-4 w-[90%] sm:w-[650px] h-[360px] bg-black/90 border border-green-600/50 rounded-xl shadow-lg font-mono text-green-400 flex flex-col z-50">
             <div className="flex-1 flex flex-col">
               <div className="flex items-center overflow-x-auto bg-black/70 border-b border-green-700/40">
                 {notes.map(n => (
                   <div key={n.id} onClick={() => setActiveId(n.id)} className={`flex items-center px-3 py-1 cursor-pointer ${n.id === activeId ? "bg-green-700/30" : "hover:bg-green-800/20"}`}>
-                    {n.editing ? (
-                      <input autoFocus type="text" defaultValue={n.title} onBlur={e => renameNote(n.id, e.target.value || n.title)} onKeyDown={e => e.key === "Enter" && renameNote(n.id, (e.target as HTMLInputElement).value || n.title)} className="bg-transparent border-b border-green-400 text-green-200 text-xs outline-none"/>
-                    ) : (
-                      <span onDoubleClick={() => setNotes(notes.map(x => x.id === n.id ? {...x, editing:true} : x))}>{n.title}</span>
-                    )}
+                    {n.editing ? <input autoFocus type="text" defaultValue={n.title} onBlur={e => renameNote(n.id, e.target.value || n.title)} onKeyDown={e => e.key === "Enter" && renameNote(n.id, (e.target as HTMLInputElement).value || n.title)} className="bg-transparent border-b border-green-400 text-green-200 text-xs outline-none"/> : <span onDoubleClick={() => setNotes(notes.map(x => x.id === n.id ? {...x, editing:true} : x))}>{n.title}</span>}
                     <button onClick={e => { e.stopPropagation(); removeNote(n.id); }} className="ml-2 text-green-400 hover:text-green-200">✕</button>
                   </div>
                 ))}
