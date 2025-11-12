@@ -40,23 +40,18 @@ export default function Page() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 🧩 Safer Split Function (prevents code breakage)
+  // 🧩 Safer Split Function
   function splitResponse(content: string) {
-    const normalized = content.replace(/\r?\n+/g, "\n").trim();
-
-    // 🚫 Skip parsing if code block or JSON detected
-    if (normalized.includes("```") || normalized.includes("{")) {
-      return { main: normalized, recaps: [], urls: [] };
+    if (content.includes("```") || content.includes("{")) {
+      return { main: content, recaps: [], urls: [] };
     }
-
+    const normalized = content.replace(/\r?\n+/g, "\n").trim();
     const recapRegex = /(📘 Quick Recap[:\s\S]*?)(?=$|\n{2,}|$)/gi;
     const recaps = [...normalized.matchAll(recapRegex)].map((m) => m[0].trim());
     const withoutRecaps = normalized.replace(recapRegex, "").trim();
-
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
     const urls = [...withoutRecaps.matchAll(urlRegex)].map((m) => m[0]);
     const main = withoutRecaps.replace(urlRegex, "").trim();
-
     return { main, recaps, urls };
   }
 
@@ -98,20 +93,14 @@ export default function Page() {
         const linksText =
           "🔗 Resource Links:\n" + urls.map((u) => `- [${u}](${u})`).join("\n");
         setTimeout(() => {
-          setMessages((prev) => [
-            ...prev,
-            { role: "assistant", content: linksText },
-          ]);
+          setMessages((prev) => [...prev, { role: "assistant", content: linksText }]);
         }, 600 + recaps.length * 300);
       }
     } catch (err) {
       console.error("API error:", err);
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: "⚠️ Error: Could not reach the API.",
-        },
+        { role: "assistant", content: "⚠️ Error: Could not reach the API." },
       ]);
     } finally {
       setFile(null);
@@ -177,9 +166,11 @@ export default function Page() {
     },
   };
 
-  // 💡 Quick Ask
+  // 💡 Quick Ask — Clean snippet only
   function handleQuickAsk(msg: string) {
-    setInput(`Expand on this part: "${msg.slice(0, 120)}..."`);
+    const clean = msg.replace(/[#*>`📘🔗💡🧠]/g, "").trim();
+    const snippet = clean.length > 120 ? clean.slice(0, 120) + "..." : clean;
+    setInput(`Expand on this part: "${snippet}"`);
     document.querySelector<HTMLInputElement>("input[type='text']")?.focus();
   }
 
@@ -274,14 +265,6 @@ export default function Page() {
         </div>
       </form>
 
-      {/* Notes Panel Toggle */}
-      <button
-        onClick={() => setShowNotes((p) => !p)}
-        className="fixed bottom-24 right-4 bg-gradient-to-r from-green-400 to-emerald-600 text-black px-4 py-2 rounded-full font-semibold hover:opacity-90 shadow-lg z-50"
-      >
-        {showNotes ? "🧠 Close Notes" : "📂 Notes"}
-      </button>
-
       {/* Notes Panel */}
       <AnimatePresence>
         {showNotes && (
@@ -292,62 +275,64 @@ export default function Page() {
             transition={{ duration: 0.25 }}
             className="fixed bottom-24 right-4 w-[90%] sm:w-[650px] h-[360px] bg-black/90 border border-green-600/50 rounded-xl shadow-lg font-mono text-green-400 flex flex-col z-50"
           >
-            <div className="flex items-center bg-black/70 border-b border-green-700/40 overflow-x-auto relative">
+            <div className="relative flex items-center">
+              {/* Exit button separated from tabs */}
               <button
                 onClick={() => setShowNotes(false)}
-                className="absolute right-3 text-green-400 hover:text-green-200 text-lg"
+                className="absolute right-3 top-2 text-green-400 hover:text-green-200 text-lg z-50"
               >
                 ✕
               </button>
-
-              {notes.map((n) => (
-                <div
-                  key={n.id}
-                  onClick={() => setActiveId(n.id)}
-                  className={`flex items-center px-3 py-1 cursor-pointer ${
-                    n.id === activeId ? "bg-green-700/30" : "hover:bg-green-800/20"
-                  }`}
-                >
-                  {n.editing ? (
-                    <input
-                      autoFocus
-                      type="text"
-                      defaultValue={n.title}
-                      onBlur={(e) =>
-                        renameNote(n.id, e.target.value || n.title)
-                      }
-                      onKeyDown={(e) =>
-                        e.key === "Enter" &&
-                        renameNote(n.id, (e.target as HTMLInputElement).value || n.title)
-                      }
-                      className="bg-transparent border-b border-green-400 text-green-200 text-xs outline-none"
-                    />
-                  ) : (
-                    <span
-                      onDoubleClick={() =>
-                        setNotes(notes.map((x) => (x.id === n.id ? { ...x, editing: true } : x)))
-                      }
-                    >
-                      {n.title}
-                    </span>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeNote(n.id);
-                    }}
-                    className="ml-2 text-green-400 hover:text-green-200"
+              <div className="flex-1 flex items-center overflow-x-auto bg-black/70 border-b border-green-700/40">
+                {notes.map((n) => (
+                  <div
+                    key={n.id}
+                    onClick={() => setActiveId(n.id)}
+                    className={`flex items-center px-3 py-1 cursor-pointer ${
+                      n.id === activeId ? "bg-green-700/30" : "hover:bg-green-800/20"
+                    }`}
                   >
-                    ✕
-                  </button>
-                </div>
-              ))}
-              <button
-                onClick={addNote}
-                className="ml-auto px-3 py-1 text-green-400 hover:text-green-200"
-              >
-                ＋
-              </button>
+                    {n.editing ? (
+                      <input
+                        autoFocus
+                        type="text"
+                        defaultValue={n.title}
+                        onBlur={(e) =>
+                          renameNote(n.id, e.target.value || n.title)
+                        }
+                        onKeyDown={(e) =>
+                          e.key === "Enter" &&
+                          renameNote(n.id, (e.target as HTMLInputElement).value || n.title)
+                        }
+                        className="bg-transparent border-b border-green-400 text-green-200 text-xs outline-none"
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={() =>
+                          setNotes(notes.map((x) => (x.id === n.id ? { ...x, editing: true } : x)))
+                        }
+                      >
+                        {n.title}
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeNote(n.id);
+                      }}
+                      className="ml-2 text-green-400 hover:text-green-200"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={addNote}
+                  className="ml-auto px-3 py-1 text-green-400 hover:text-green-200"
+                >
+                  ＋
+                </button>
+              </div>
             </div>
 
             <textarea
