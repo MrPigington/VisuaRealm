@@ -60,6 +60,7 @@ async function handleUniversal(messages = [], image = null) {
       ]
     : [];
 
+  // 🔹 Main response
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0.8,
@@ -97,12 +98,29 @@ Tone:
   });
 
   const reply = completion.choices?.[0]?.message?.content?.trim() || "⚠️ No response.";
-  return json(formatWithContext(context, reply));
+
+  // 🔹 Auto summary generation
+  const summaryCompletion = await client.chat.completions.create({
+    model: "gpt-4o-mini",
+    temperature: 0.4,
+    max_tokens: 200,
+    messages: [
+      {
+        role: "system",
+        content: "Summarize the most recent assistant response into one clear and short paragraph.",
+      },
+      { role: "assistant", content: reply },
+    ],
+  });
+
+  const summary =
+    summaryCompletion.choices?.[0]?.message?.content?.trim() || "⚠️ No summary generated.";
+
+  return json(formatWithContext(context, reply, summary));
 }
 
 /* ------------------ Helper Functions ------------------ */
 
-// Context detection
 function detectContext(text = "") {
   if (/(react|js|code|function|api|python|c\+\+|html|css|unreal|ue5)/.test(text))
     return "🧠 Programming & Tech";
@@ -117,7 +135,6 @@ function detectContext(text = "") {
   return "💬 General";
 }
 
-// Tone / depth detection
 function detectMode(text = "") {
   text = text.toLowerCase();
   if (text.includes("code") || text.includes("build") || text.includes("fix")) return "⚙️ Code Mode";
@@ -126,8 +143,8 @@ function detectMode(text = "") {
   return "🧠 Learn Mode";
 }
 
-function formatWithContext(context, reply) {
-  return `> **${context}**\n\n${reply}`;
+function formatWithContext(context, reply, summary) {
+  return `> **${context}**\n\n${reply}\n\n---\n\n📘 **Quick Recap:** ${summary}`;
 }
 
 function json(reply, status = 200) {
