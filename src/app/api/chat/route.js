@@ -1,29 +1,26 @@
 export const runtime = "nodejs"; // must be FIRST
 
 import OpenAI from "openai";
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req) {
   try {
     const type = req.headers.get("content-type") || "";
 
-    // 🟢 Handle plain JSON text
+    // 🟢 plain JSON (text only)
     if (type.includes("application/json")) {
       const { messages } = await req.json();
       return await handleText(messages);
     }
 
-    // 🟣 Handle multipart (text ± image)
+    // 🟣 multipart form (text ± image)
     if (type.includes("multipart/form-data")) {
       const form = await req.formData();
       const messages = JSON.parse(form.get("messages") || "[]");
       const file = form.get("file");
       const userMsg = messages.at(-1)?.content || "";
 
-      // if no file or empty file, just text mode
+      // no file → text fallback
       if (!(file instanceof File) || file.size === 0) {
         console.log("🟢 No file uploaded — text-only path");
         return await handleText(messages);
@@ -38,18 +35,25 @@ export async function POST(req) {
       // 🧠 GPT-4o Vision call
       const completion = await client.chat.completions.create({
         model: "gpt-4o-mini",
+        temperature: 0.7,
         messages: [
           {
             role: "system",
-            content:
-              "You are VisuaRealm — an AI that can analyze uploaded images and respond clearly in Markdown.",
+            content: `
+You are VisuaRealm — an AI that analyzes uploaded images and formats replies beautifully in Markdown.
+Always include:
+• A short visual description first
+• Then clear bullet points or structured insights
+• Use bold text and headings when helpful
+            `,
           },
           ...messages,
           {
             role: "user",
             content: [
               { type: "text", text: `Analyze this image and help with: ${userMsg}` },
-              { type: "image_url", image_url: dataUrl },
+              // ✅ correct schema — image_url is now an object
+              { type: "image_url", image_url: { url: dataUrl } },
             ],
           },
         ],
@@ -61,7 +65,7 @@ export async function POST(req) {
       return json(reply);
     }
 
-    // 🚫 Anything else
+    // 🚫 anything else
     return json("⚠️ Unsupported request type.", 400);
   } catch (err) {
     console.error("❌ Chat route error:", err);
@@ -72,7 +76,7 @@ export async function POST(req) {
   }
 }
 
-// --- Helpers ------------------------------------------------------------
+// ─── helpers ─────────────────────────────────────────────────────────────
 
 async function handleText(messages = []) {
   const completion = await client.chat.completions.create({
@@ -81,8 +85,12 @@ async function handleText(messages = []) {
     messages: [
       {
         role: "system",
-        content:
-          "You are VisuaRealm — an intelligent assistant. Use Markdown and fenced code blocks for any code.",
+        content: `
+You are VisuaRealm — an intelligent Markdown-formatted assistant.
+Always:
+• Structure replies with headings, bullet points, and code fences
+• Keep responses clear and visually organized
+        `,
       },
       ...messages,
     ],
