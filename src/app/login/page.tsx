@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-// ✅ Prevents Vercel from prerendering or caching
+// ✅ Correct dynamic flags for Vercel / Next.js 14+
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
+export const revalidate = false;         // ❗ must be boolean, not 0
 export const fetchCache = "force-no-store";
 
 export default function LoginPage() {
@@ -49,7 +49,6 @@ export default function LoginPage() {
     else alert("✅ Account created! Check your email for verification.");
   }
 
-  // 💻 UI
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-sm bg-white shadow-lg rounded-xl p-8">
