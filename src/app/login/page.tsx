@@ -4,7 +4,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-export const dynamic = "force-dynamic"; // ✅ Fixes build crash on Vercel
+// ✅ Prevents Vercel from prerendering or caching
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -37,7 +40,10 @@ export default function LoginPage() {
   // 🪪 Handle Sign Up
   async function handleSignUp() {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
     setLoading(false);
     if (error) alert(error.message);
     else alert("✅ Account created! Check your email for verification.");
