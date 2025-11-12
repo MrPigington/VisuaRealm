@@ -32,6 +32,7 @@ export default function Page() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // 🧩 Main Send Message Function
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
     if (!input.trim() && !file) return;
@@ -55,8 +56,31 @@ export default function Page() {
     try {
       const res = await fetch("/api/chat", { method: "POST", body: formData });
       const data = await res.json();
-      const botMessage: Message = { role: "assistant", content: data.reply };
+
+      // 🧠 Split Recap Section if Found
+      const reply = data.reply || "";
+      const recapMatch = reply.match(/## 🧩 Summary([\s\S]*?)## 🚀 Next Steps|## 🧩 Summary([\s\S]*)$/);
+      let mainText = reply;
+      let recap = "";
+
+      if (recapMatch) {
+        recap = recapMatch[1]?.trim() || recapMatch[2]?.trim() || "";
+        mainText = reply.replace(recapMatch[0], "").trim();
+      }
+
+      // Add main reply first
+      const botMessage: Message = { role: "assistant", content: mainText };
       setMessages((prev) => [...prev, botMessage]);
+
+      // Add recap bubble a moment later
+      if (recap) {
+        setTimeout(() => {
+          setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: `📘 Quick Recap:\n${recap}` },
+          ]);
+        }, 500);
+      }
     } catch (err) {
       console.error("API error:", err);
       setMessages((prev) => [
@@ -131,11 +155,16 @@ export default function Page() {
         {/* Messages */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
-            <div
+            <motion.div
               key={i}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
               className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed break-words shadow-lg transition ${
                 msg.role === "user"
                   ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                  : msg.content.startsWith("📘 Quick Recap:")
+                  ? "bg-gradient-to-r from-cyan-500/30 to-blue-700/30 border border-cyan-400/40 text-blue-100 italic shadow-[0_0_15px_rgba(0,200,255,0.15)]"
                   : "bg-neutral-900 border border-neutral-800 text-gray-200"
               }`}
             >
@@ -150,7 +179,7 @@ export default function Page() {
                   className="mt-2 rounded-lg max-w-full max-h-64 object-contain border border-neutral-700"
                 />
               )}
-            </div>
+            </motion.div>
           ))}
           {loading && (
             <div className="text-gray-500 italic animate-pulse">VisuaRealm is thinking...</div>
