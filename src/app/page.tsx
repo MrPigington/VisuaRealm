@@ -20,27 +20,42 @@ export default function Page() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const [followUp, setFollowUp] = useState<{ visible: boolean; text: string }>({ visible: false, text: "" });
+
+  // 🧠 Multi-Tab Notes
+  const [showNotes, setShowNotes] = useState(false);
+  const [notes, setNotes] = useState([{ id: 1, title: "main.js", content: "", editing: false }]);
+  const [activeId, setActiveId] = useState(1);
+  const [noteLoading, setNoteLoading] = useState(false);
+  const activeNote = notes.find((n) => n.id === activeId)!;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 🧠 Split Recaps
+  // 🧩 Smart Split: Recap + Links
   function splitResponse(content: string) {
-    const clean = content.replace(/\r?\n+/g, "\n").trim();
-    const recapRegex = /(📘 Quick Recap[:\s\S]*?)(?=\n{2,}|$)/gi;
-    const recaps = [...clean.matchAll(recapRegex)].map((m) => m[0].trim());
-    const main = clean.replace(recapRegex, "").trim();
-    return { main, recaps };
+    const normalized = content.replace(/\r?\n+/g, "\n").trim();
+
+    const recapRegex = /(📘 Quick Recap[:\s\S]*?)(?=$|\n{2,}|$)/gi;
+    const recaps = [...normalized.matchAll(recapRegex)].map((m) => m[0].trim());
+    const withoutRecaps = normalized.replace(recapRegex, "").trim();
+
+    const urlRegex = /(https?:\/\/[^\s]+)/gi;
+    const urls = [...withoutRecaps.matchAll(urlRegex)].map((m) => m[0]);
+    const main = withoutRecaps.replace(urlRegex, "").trim();
+
+    return { main, recaps, urls };
   }
 
-  async function sendMessage(e: FormEvent) {
-    e.preventDefault();
-    if (!input.trim() && !file) return;
+  // 📨 Send Message
+  async function sendMessage(e: FormEvent, followUpText?: string) {
+    e?.preventDefault?.();
+    if (!input.trim() && !file && !followUpText) return;
 
+    const userContent = followUpText || input;
     const fileUrl = file ? URL.createObjectURL(file) : undefined;
-    const userMessage: Message = { role: "user", content: input || "📎 Uploaded an image:", fileUrl };
+
+    const userMessage: Message = { role: "user", content: userContent, fileUrl };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput("");
@@ -54,12 +69,21 @@ export default function Page() {
       const res = await fetch("/api/chat", { method: "POST", body: formData });
       const data = await res.json();
       const reply = data.reply || "";
-      const { main, recaps } = splitResponse(reply);
+      const { main, recaps, urls } = splitResponse(reply);
 
       setMessages((prev) => [...prev, { role: "assistant", content: main }]);
+
       recaps.forEach((r, i) =>
-        setTimeout(() => setMessages((prev) => [...prev, { role: "assistant", content: r }]), 400 + i * 300)
+        setTimeout(() => setMessages((prev) => [...prev, { role: "assistant", content: r }]), 400 + i * 200)
       );
+
+      if (urls.length > 0) {
+        const linksText = "🔗 Resource Links:\n" + urls.map((u) => `- [${u}](${u})`).join("\n");
+        setTimeout(
+          () => setMessages((prev) => [...prev, { role: "assistant", content: linksText }]),
+          600 + recaps.length * 200
+        );
+      }
     } catch (err) {
       console.error("API error:", err);
       setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Error: Could not reach the API." }]);
@@ -69,6 +93,52 @@ export default function Page() {
     }
   }
 
+  // 💡 Instant Ask
+  async function quickAsk(message: string) {
+    const followUp = `Expand more on: "${message.slice(0, 300)}..."`;
+    await sendMessage({ preventDefault: () => {} } as FormEvent, followUp);
+  }
+
+  // 🧠 Notes Logic
+  function addNote() {
+    const id = Date.now();
+    setNotes([...notes, { id, title: `note-${notes.length + 1}.txt`, content: "", editing: false }]);
+    setActiveId(id);
+  }
+
+  function updateNoteContent(value: string) {
+    setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: value } : n)));
+  }
+
+  function renameNote(id: number, newTitle: string) {
+    setNotes(notes.map((n) => (n.id === id ? { ...n, title: newTitle, editing: false } : n)));
+  }
+
+  function removeNote(id: number) {
+    setNotes(notes.filter((n) => n.id !== id));
+    if (activeId === id && notes.length > 1) setActiveId(notes[0].id);
+  }
+
+  async function improveNote() {
+    const note = notes.find((n) => n.id === activeId);
+    if (!note) return;
+    setNoteLoading(true);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: note.content }] }),
+      });
+      const data = await res.json();
+      setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: data.reply } : n)));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setNoteLoading(false);
+    }
+  }
+
+  // Markdown styling
   const markdownComponents: Components = {
     code({ className, children }) {
       const match = /language-(\w+)/.exec(className || "");
@@ -99,7 +169,9 @@ export default function Page() {
                   msg.role === "user"
                     ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
                     : msg.content.startsWith("📘 Quick Recap")
-                    ? "bg-gradient-to-r from-cyan-500/20 to-blue-700/30 border border-cyan-400/40 text-blue-100 italic shadow-[0_0_15px_rgba(0,200,255,0.15)]"
+                    ? "bg-gradient-to-r from-cyan-500/20 to-blue-700/30 border border-cyan-400/40 text-blue-100 italic"
+                    : msg.content.startsWith("🔗 Resource Links")
+                    ? "bg-gradient-to-r from-green-500/20 to-emerald-600/20 border border-green-500/40 text-green-200"
                     : "bg-neutral-900 border border-neutral-800 text-gray-200"
                 }`}
               >
@@ -107,15 +179,16 @@ export default function Page() {
                   {msg.content}
                 </ReactMarkdown>
 
-                {/* 💡 Quick Ask */}
-                {msg.role === "assistant" && !msg.content.startsWith("📘 Quick Recap") && (
-                  <button
-                    onClick={() => setFollowUp({ visible: true, text: msg.content.slice(0, 80) })}
-                    className="absolute -bottom-4 right-2 text-xs bg-blue-600/60 hover:bg-blue-700/80 text-white px-2 py-0.5 rounded-md shadow-sm"
-                  >
-                    💡 Ask
-                  </button>
-                )}
+                {msg.role === "assistant" &&
+                  !msg.content.startsWith("📘 Quick Recap") &&
+                  !msg.content.startsWith("🔗 Resource Links") && (
+                    <button
+                      onClick={() => quickAsk(msg.content)}
+                      className="text-xs mt-2 px-2 py-1 rounded-md bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 transition"
+                    >
+                      💡 Ask
+                    </button>
+                  )}
               </div>
             </motion.div>
           ))}
@@ -124,67 +197,75 @@ export default function Page() {
         </div>
       </section>
 
-      {/* ✏️ Quick Ask Popup */}
+      {/* Input Bar */}
+      <form onSubmit={sendMessage} className="fixed bottom-[60px] left-0 right-0 flex justify-center bg-neutral-900/95 border-t border-neutral-800 px-4 sm:px-6 py-3 z-40">
+        <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
+          <label htmlFor="file-upload" className="cursor-pointer flex items-center justify-center w-9 h-9 rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200 transition" title="Upload Image">
+            📎
+          </label>
+          <input type="file" id="file-upload" accept="image/*" className="hidden" onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)} />
+          <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Talk to VisuaRealm..." className="flex-1 bg-transparent text-sm sm:text-base text-gray-100 placeholder-gray-500 outline-none" />
+          <button type="submit" disabled={loading} className="flex items-center justify-center px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition">
+            {loading ? "..." : "Send"}
+          </button>
+        </div>
+      </form>
+
+      {/* Notes */}
+      <button onClick={() => setShowNotes((p) => !p)} className="fixed bottom-24 right-4 bg-gradient-to-r from-green-400 to-emerald-600 text-black px-4 py-2 rounded-full font-semibold hover:opacity-90 shadow-lg z-50">
+        {showNotes ? "🧠 Close Notes" : "📂 Notes"}
+      </button>
+
       <AnimatePresence>
-        {followUp.visible && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.2 }}
-            className="fixed bottom-[120px] right-4 bg-neutral-900 border border-blue-500/60 rounded-xl p-4 shadow-xl w-[90%] sm:w-[400px] z-50"
-          >
-            <h4 className="text-blue-300 text-sm mb-2">💬 Ask a follow-up</h4>
-            <textarea
-              value={input || followUp.text}
-              onChange={(e) => setInput(e.target.value)}
-              rows={3}
-              className="w-full bg-black/50 text-gray-100 p-2 text-sm rounded-md border border-blue-700/40 outline-none"
-            />
-            <div className="flex justify-end gap-2 mt-2">
-              <button
-                onClick={() => setFollowUp({ visible: false, text: "" })}
-                className="text-xs px-3 py-1 bg-neutral-800 hover:bg-neutral-700 text-gray-300 rounded-md"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setFollowUp({ visible: false, text: "" });
-                  const fakeEvent = { preventDefault: () => {} } as FormEvent;
-                  sendMessage(fakeEvent);
-                }}
-                className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-md"
-              >
-                Send
+        {showNotes && (
+          <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ duration: 0.25 }} className="fixed bottom-24 right-4 w-[90%] sm:w-[650px] h-[360px] bg-black/90 border border-green-600/50 rounded-xl shadow-[0_0_25px_rgba(0,255,0,0.15)] font-mono text-green-400 flex flex-col z-50">
+            <div className="flex items-center bg-black/70 border-b border-green-700/40 overflow-x-auto">
+              {notes.map((n) => (
+                <div key={n.id} onClick={() => setActiveId(n.id)} className={`flex items-center px-3 py-1 cursor-pointer whitespace-nowrap ${n.id === activeId ? "bg-green-700/30" : "hover:bg-green-800/20"}`}>
+                  {n.editing ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      defaultValue={n.title}
+                      onBlur={(e) => renameNote(n.id, e.target.value || n.title)}
+                      onKeyDown={(e) => e.key === "Enter" && renameNote(n.id, (e.target as HTMLInputElement).value || n.title)}
+                      className="bg-transparent border-b border-green-400 text-green-200 text-xs outline-none"
+                    />
+                  ) : (
+                    <span onDoubleClick={() => setNotes(notes.map((x) => (x.id === n.id ? { ...x, editing: true } : x)))}>{n.title}</span>
+                  )}
+                  <button onClick={(e) => { e.stopPropagation(); removeNote(n.id); }} className="ml-2 text-green-400 hover:text-green-200">✕</button>
+                </div>
+              ))}
+              <button onClick={addNote} className="ml-auto px-3 py-1 text-green-400 hover:text-green-200">＋</button>
+            </div>
+            <textarea value={activeNote?.content || ""} onChange={(e) => updateNoteContent(e.target.value)} placeholder="Type code or notes here..." className="flex-1 bg-black text-green-400 text-sm p-3 outline-none resize-none" />
+            <div className="flex justify-end gap-2 p-2 border-t border-green-700/40 bg-black/70">
+              <button onClick={() => navigator.clipboard.writeText(activeNote?.content || "")} className="text-xs bg-green-700/30 hover:bg-green-700/50 text-green-300 px-3 py-1 rounded-md">Copy</button>
+              <button onClick={improveNote} disabled={noteLoading} className="text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-black font-semibold px-3 py-1 rounded-md hover:opacity-90">
+                {noteLoading ? "Thinking..." : "Improve"}
               </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Input Bar */}
-      <form
-        onSubmit={sendMessage}
-        className="fixed bottom-[60px] left-0 right-0 flex justify-center bg-neutral-900/95 border-t border-neutral-800 px-4 sm:px-6 py-3 z-40"
-      >
-        <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Talk to VisuaRealm..."
-            className="flex-1 bg-transparent text-sm sm:text-base text-gray-100 placeholder-gray-500 outline-none"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="flex items-center justify-center px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition"
-          >
-            {loading ? "..." : "Send"}
-          </button>
-        </div>
-      </form>
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 flex justify-around items-center py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.5)] border-t border-white/10 z-40">
+        {[
+          { label: "Main", path: "/" },
+          { label: "Chat", path: "/chat" },
+          { label: "Research", path: "/research" },
+          { label: "Notepad", path: "/notepad" },
+          { label: "Projects", path: "/projects" },
+          { label: "Whiteboard", path: "/whiteboard" },
+        ].map((item, i) => (
+          <Link key={i} href={item.path} className="flex flex-col items-center justify-center text-white/90 hover:text-white transition w-full">
+            <span className="text-lg leading-none mb-1">●</span>
+            <span className="text-xs font-medium">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </main>
   );
 }
