@@ -29,14 +29,11 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Notes
   const [showNotes, setShowNotes] = useState(false);
-  const [notes, setNotes] = useState<Note[]>([
-    { id: 1, title: "main.js", content: "", editing: false },
-  ]);
+  const [notes, setNotes] = useState<Note[]>([{ id: 1, title: "main.js", content: "", editing: false }]);
   const [activeId, setActiveId] = useState(1);
   const [noteLoading, setNoteLoading] = useState(false);
-  const activeNote = notes.find((n) => n.id === activeId)!;
+  const activeNote = notes.find(n => n.id === activeId)!;
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
@@ -44,20 +41,16 @@ export default function Page() {
   function splitResponse(content: string) {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
 
-    // Don't split code blocks or JSON
     if (normalized.includes("```") || normalized.includes("{")) return { main: normalized, recap: null, urls: [] };
 
-    // Extract only the first Quick Recap
     const recapRegex = /(📘 Quick Recap[:\s\S]*?)(?=$|\n{2,}|$)/i;
     const recapMatch = normalized.match(recapRegex);
     const recap = recapMatch ? recapMatch[0].trim() : null;
 
-    // Remove recap from main content
     const withoutRecap = recap ? normalized.replace(recap, "").trim() : normalized;
 
-    // Extract URLs
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
-    const urls = [...withoutRecap.matchAll(urlRegex)].map((m) => m[0]);
+    const urls = [...withoutRecap.matchAll(urlRegex)].map(m => m[0]);
     const main = withoutRecap.replace(urlRegex, "").trim();
 
     return { main, recap, urls };
@@ -69,8 +62,9 @@ export default function Page() {
     if (!input.trim() && !file) return;
 
     const userMessage: Message = { role: "user", content: input, fileUrl: file ? URL.createObjectURL(file) : undefined };
-    setMessages((prev) => [...prev, userMessage]);
-    setInput(""); setLoading(true);
+    setMessages(prev => [...prev, userMessage]);
+    setInput("");
+    setLoading(true);
 
     const formData = new FormData();
     formData.append("messages", JSON.stringify([...messages, userMessage]));
@@ -82,47 +76,48 @@ export default function Page() {
       const reply = data.reply || "";
       const { main, recap, urls } = splitResponse(reply);
 
-      // Main message
-      setMessages((prev) => [...prev, { role: "assistant", content: main }]);
-
-      // Single recap bubble
-      if (recap) setMessages((prev) => [...prev, { role: "assistant", content: recap, type: "recap" }]);
-
-      // Resource links bubble
+      if (main) setMessages(prev => [...prev, { role: "assistant", content: main }]);
+      if (recap) setMessages(prev => [...prev, { role: "assistant", content: recap, type: "recap" }]);
       if (urls.length > 0) {
-        const linksText = "🔗 Resource Links:\n" + urls.map((u) => `- [${u}](${u})`).join("\n");
-        setMessages((prev) => [...prev, { role: "assistant", content: linksText, type: "recap" }]);
+        const linksText = "🔗 Resource Links:\n" + urls.map(u => `- [${u}](${u})`).join("\n");
+        setMessages(prev => [...prev, { role: "assistant", content: linksText, type: "recap" }]);
       }
-
     } catch (err) {
       console.error(err);
-      setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Error: Could not reach the API." }]);
-    } finally { setFile(null); setLoading(false); }
+      setMessages(prev => [...prev, { role: "assistant", content: "⚠️ Error: Could not reach the API." }]);
+    } finally {
+      setFile(null);
+      setLoading(false);
+    }
   }
 
   // --- Notes logic ---
-  function addNote() { 
-    const id = Date.now(); 
-    setNotes([...notes, { id, title: `note-${notes.length + 1}.txt`, content: "", editing: false }]); 
-    setActiveId(id); 
+  function addNote() {
+    const id = Date.now();
+    setNotes([...notes, { id, title: `note-${notes.length + 1}.txt`, content: "", editing: false }]);
+    setActiveId(id);
   }
-  function updateNoteContent(value: string) { setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: value } : n))); }
-  function renameNote(id: number, newTitle: string) { setNotes(notes.map((n) => (n.id === activeId ? { ...n, title: newTitle, editing: false } : n))); }
-  function removeNote(id: number) { setNotes(notes.filter((n) => n.id !== id)); if (activeId === id && notes.length > 1) setActiveId(notes[0].id); }
-  async function improveNote() { 
-    const note = notes.find((n) => n.id === activeId); 
-    if (!note) return; 
-    setNoteLoading(true); 
-    try { 
-      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: note.content }] }) }); 
-      const data = await res.json(); 
-      setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: data.reply } : n))); 
-    } catch (err) { console.error(err); } finally { setNoteLoading(false); } 
+  function updateNoteContent(value: string) { setNotes(notes.map(n => (n.id === activeId ? { ...n, content: value } : n))); }
+  function renameNote(id: number, newTitle: string) { setNotes(notes.map(n => (n.id === activeId ? { ...n, title: newTitle, editing: false } : n))); }
+  function removeNote(id: number) { setNotes(notes.filter(n => n.id !== id)); if (activeId === id && notes.length > 1) setActiveId(notes[0].id); }
+  async function improveNote() {
+    const note = notes.find(n => n.id === activeId);
+    if (!note) return;
+    setNoteLoading(true);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: note.content }] })
+      });
+      const data = await res.json();
+      setNotes(notes.map(n => (n.id === activeId ? { ...n, content: data.reply } : n)));
+    } catch (err) { console.error(err); } finally { setNoteLoading(false); }
   }
 
-  const markdownComponents: Components = { 
-    code({ className, children }) { 
-      const match = /language-(\w+)/.exec(className || ""); 
+  const markdownComponents: Components = {
+    code({ className, children }) {
+      const match = /language-(\w+)/.exec(className || "");
       return match ? (
         <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
           <code>{String(children).replace(/\n$/, "")}</code>
@@ -130,7 +125,7 @@ export default function Page() {
       ) : (
         <code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">{children}</code>
       );
-    } 
+    }
   };
 
   return (
@@ -153,7 +148,7 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Input */}
+      {/* Input with image preview */}
       <form onSubmit={sendMessage} className="fixed bottom-[60px] left-0 right-0 flex justify-center bg-neutral-900/95 border-t border-neutral-800 px-4 py-3 z-40">
         <div className="w-full max-w-2xl flex flex-col gap-2">
           {file && (
@@ -171,12 +166,10 @@ export default function Page() {
         </div>
       </form>
 
-      {/* Notes Toggle */}
+      {/* Notes Toggle & Panel */}
       <button onClick={() => setShowNotes(p => !p)} className="fixed bottom-6 right-4 z-[999] bg-gradient-to-r from-green-400 to-emerald-600 text-black px-4 py-2 rounded-full font-semibold hover:opacity-90 shadow-lg">
         {showNotes ? "🧠 Close Notes" : "📂 Notes"}
       </button>
-
-      {/* Notes Panel */}
       <AnimatePresence>
         {showNotes && (
           <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ duration: 0.25 }}
