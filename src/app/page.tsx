@@ -120,14 +120,14 @@ export default function Page() {
   };
 
   return (
-    <main className="flex flex-col min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative pb-24">
+    <main className="flex flex-col min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative pb-[120px]">
       {/* Profile Button */}
       <div className="absolute top-4 right-4 z-50">
         <ProfileMenu />
       </div>
 
       {/* Chat Section */}
-      <section className="flex-1 flex flex-col items-center justify-between pb-24">
+      <section className="flex-1 flex flex-col items-center justify-between pb-[120px]">
         {/* Messages */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
@@ -157,65 +157,64 @@ export default function Page() {
           )}
           <div ref={chatEndRef} />
         </div>
-
-        {/* Input + File Upload */}
-        <form
-          onSubmit={sendMessage}
-          className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center"
-        >
-          <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg overflow-visible relative">
-            {/* Upload */}
-            <div className="relative flex items-center">
-              <input
-                type="file"
-                id="file-upload"
-                accept="image/*"
-                className="hidden"
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)}
-              />
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer flex items-center justify-center w-9 h-9 rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200 transition"
-                title="Upload Image"
-              >
-                📎
-              </label>
-            </div>
-
-            {file && (
-              <div className="flex items-center gap-2 text-xs text-gray-400 truncate max-w-[140px]">
-                <span className="truncate">{file.name}</span>
-                <button
-                  type="button"
-                  className="text-red-400 hover:text-red-300"
-                  onClick={() => setFile(null)}
-                  title="Remove file"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Talk to VisuaRealm..."
-              className="flex-1 bg-transparent text-sm sm:text-base text-gray-100 placeholder-gray-500 outline-none"
-            />
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center justify-center px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition"
-            >
-              {loading ? "..." : "Send"}
-            </button>
-          </div>
-        </form>
       </section>
 
-      {/* 🧠 Multi-Tab Live Notes */}
+      {/* Fixed Input Bar */}
+      <form
+        onSubmit={sendMessage}
+        className="fixed bottom-[60px] left-0 right-0 flex justify-center bg-neutral-900/95 border-t border-neutral-800 px-4 sm:px-6 py-3 z-40"
+      >
+        <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
+          <div className="relative flex items-center">
+            <input
+              type="file"
+              id="file-upload"
+              accept="image/*"
+              className="hidden"
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)}
+            />
+            <label
+              htmlFor="file-upload"
+              className="cursor-pointer flex items-center justify-center w-9 h-9 rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200 transition"
+              title="Upload Image"
+            >
+              📎
+            </label>
+          </div>
+
+          {file && (
+            <div className="flex items-center gap-2 text-xs text-gray-400 truncate max-w-[140px]">
+              <span className="truncate">{file.name}</span>
+              <button
+                type="button"
+                className="text-red-400 hover:text-red-300"
+                onClick={() => setFile(null)}
+                title="Remove file"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Talk to VisuaRealm..."
+            className="flex-1 bg-transparent text-sm sm:text-base text-gray-100 placeholder-gray-500 outline-none"
+          />
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex items-center justify-center px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition"
+          >
+            {loading ? "..." : "Send"}
+          </button>
+        </div>
+      </form>
+
+      {/* Multi-Tab Live Notes */}
       <button
         onClick={() => setShowNotes((p) => !p)}
         className="fixed bottom-24 right-4 bg-gradient-to-r from-green-400 to-emerald-600 text-black px-4 py-2 rounded-full font-semibold hover:opacity-90 shadow-lg z-50"
@@ -232,7 +231,6 @@ export default function Page() {
             transition={{ duration: 0.25 }}
             className="fixed bottom-24 right-4 w-[90%] sm:w-[650px] h-[360px] bg-black/90 border border-green-600/50 rounded-xl shadow-[0_0_25px_rgba(0,255,0,0.15)] font-mono text-green-400 flex flex-col z-50"
           >
-            {/* Tabs */}
             <div className="flex items-center bg-black/70 border-b border-green-700/40 overflow-x-auto">
               {notes.map((n) => (
                 <div
@@ -259,7 +257,6 @@ export default function Page() {
               </button>
             </div>
 
-            {/* Editor */}
             <textarea
               value={activeNote?.content || ""}
               onChange={(e) => updateNoteContent(e.target.value)}
@@ -267,7 +264,6 @@ export default function Page() {
               className="flex-1 bg-black text-green-400 text-sm p-3 outline-none resize-none"
             />
 
-            {/* Footer */}
             <div className="flex justify-end gap-2 p-2 border-t border-green-700/40 bg-black/70">
               <button
                 onClick={() => navigator.clipboard.writeText(activeNote?.content || "")}
