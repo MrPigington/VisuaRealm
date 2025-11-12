@@ -1,8 +1,6 @@
 import OpenAI from "openai";
 
-export const config = {
-  runtime: "nodejs", // ✅ Force full Node runtime on Vercel
-};
+export const runtime = "nodejs"; // ✅ Correct way for Next.js App Router
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -31,9 +29,9 @@ export async function POST(req) {
       const mimeType = file.type || "image/png";
       const imageData = `data:${mimeType};base64,${base64}`;
 
-      console.log("🖼 Image prepared for GPT (size):", file.size, "bytes");
+      console.log("🖼 Image uploaded, size:", file.size, "bytes");
 
-      // 💬 GPT Vision
+      // 🧠 GPT-4o Vision (analyzes image)
       const completion = await client.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -46,7 +44,7 @@ export async function POST(req) {
           {
             role: "user",
             content: [
-              { type: "text", text: "Analyze this image briefly and clearly." },
+              { type: "text", text: "Analyze and describe this image clearly." },
               { type: "image_url", image_url: imageData },
             ],
           },
@@ -63,7 +61,7 @@ export async function POST(req) {
       });
     }
 
-    // 🟢 Handle normal text chats
+    // 🟢 Handle text messages
     if (contentType.includes("application/json")) {
       const { messages } = await req.json();
 
@@ -74,15 +72,14 @@ export async function POST(req) {
           {
             role: "system",
             content:
-              "You are VisuaRealm — an intelligent, expressive assistant. Respond in Markdown, organized like ChatGPT.",
+              "You are VisuaRealm — an intelligent assistant. Respond cleanly, structured, in Markdown.",
           },
           ...messages,
         ],
       });
 
       const reply =
-        completion.choices?.[0]?.message?.content?.trim() ||
-        "⚠️ No response generated.";
+        completion.choices?.[0]?.message?.content?.trim() || "⚠️ No response generated.";
 
       return new Response(JSON.stringify({ reply }), {
         status: 200,
