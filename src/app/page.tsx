@@ -9,7 +9,6 @@ import ProfileMenu from "@/components/ProfileMenu";
 interface Message {
   role: "user" | "assistant";
   content: string;
-  fileUrl?: string;
 }
 
 export default function Page() {
@@ -41,10 +40,7 @@ export default function Page() {
     if (file) formData.append("file", file);
 
     try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        body: formData,
-      });
+      const res = await fetch("/api/chat", { method: "POST", body: formData });
       const data = await res.json();
       const botMessage: Message = { role: "assistant", content: data.reply };
       setMessages((prev) => [...prev, botMessage]);
@@ -96,6 +92,7 @@ export default function Page() {
 
       {/* Chat Section */}
       <section className="flex-1 flex flex-col items-center justify-between">
+        {/* Messages */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
@@ -115,32 +112,38 @@ export default function Page() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Section */}
+        {/* Input + File Upload */}
         <form
           onSubmit={sendMessage}
           className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center"
         >
           <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
-            {/* File Upload */}
+            
+            {/* Upload Button (VISIBLE) */}
+            <button
+              type="button"
+              onClick={() => document.getElementById("file-upload")?.click()}
+              className="px-3 py-2 bg-neutral-700 rounded-full text-gray-200 hover:bg-neutral-600 transition text-sm"
+            >
+              📎 Upload
+            </button>
             <input
               type="file"
               id="file-upload"
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setFile(e.target.files?.[0] || null)
-              }
               className="hidden"
+              onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)}
             />
-            <label
-              htmlFor="file-upload"
-              className="cursor-pointer text-xl text-gray-400 hover:text-white transition"
-              title="Upload a file or image"
-            >
-              📎
-            </label>
             {file && (
-              <span className="text-xs text-gray-400 truncate max-w-[120px]">
-                {file.name}
-              </span>
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <span>{file.name}</span>
+                <button
+                  type="button"
+                  className="text-red-400 hover:text-red-300"
+                  onClick={() => setFile(null)}
+                >
+                  ✕
+                </button>
+              </div>
             )}
 
             {/* Text Input */}
