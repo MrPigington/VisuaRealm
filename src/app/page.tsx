@@ -42,7 +42,6 @@ export default function Page() {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
     if (normalized.includes("```") || normalized.includes("{")) return { main: normalized, recap: null, urls: [] };
 
-    // Extract only the first Quick Recap
     const recapRegex = /(📘 Quick Recap[:\s\S]*?)(?=$|\n{2,}|$)/i;
     const recapMatch = normalized.match(recapRegex);
     const recap = recapMatch ? recapMatch[0].trim() : null;
@@ -62,7 +61,8 @@ export default function Page() {
 
     const userMessage: Message = { role: "user", content: input, fileUrl: file ? URL.createObjectURL(file) : undefined };
     setMessages(prev => [...prev, userMessage]);
-    setInput(""); setLoading(true);
+    setInput("");
+    setLoading(true);
 
     const formData = new FormData();
     formData.append("messages", JSON.stringify([...messages, userMessage]));
@@ -74,13 +74,15 @@ export default function Page() {
       const reply = data.reply || "";
       const { main, recap, urls } = splitResponse(reply);
 
-      // Main response
+      // Add main message
       if (main) setMessages(prev => [...prev, { role: "assistant", content: main }]);
 
-      // Single blue bubble recap
-      if (recap) setMessages(prev => [...prev, { role: "assistant", content: recap, type: "recap" }]);
+      // Interactive Quick Recap bubble
+      if (recap) {
+        setMessages(prev => [...prev, { role: "assistant", content: recap, type: "recap" }]);
+      }
 
-      // Resource links as blue bubble
+      // Resource links bubble
       if (urls.length > 0) {
         const linksText = "🔗 Resource Links:\n" + urls.map(u => `- [${u}](${u})`).join("\n");
         setMessages(prev => [...prev, { role: "assistant", content: linksText, type: "recap" }]);
@@ -136,13 +138,16 @@ export default function Page() {
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6">
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-              <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-lg ${
-                msg.role === "user"
-                  ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                  : msg.type === "recap"
-                  ? "bg-blue-900/30 border border-blue-400/30 italic text-blue-100"
-                  : "bg-neutral-900 border border-neutral-800 text-gray-200"
-              }`}>
+              <div
+                className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-lg ${
+                  msg.role === "user"
+                    ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                    : msg.type === "recap"
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-500 border border-blue-400 text-white hover:scale-105 transition cursor-pointer"
+                    : "bg-neutral-900 border border-neutral-800 text-gray-200"
+                }`}
+                onClick={() => { if(msg.type === "recap") navigator.clipboard.writeText(msg.content) }}
+              >
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.content}</ReactMarkdown>
                 {msg.fileUrl && <img src={msg.fileUrl} className="mt-2 max-w-full rounded-md" />}
               </div>
@@ -153,7 +158,7 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Input with image preview */}
+      {/* Input & image preview */}
       <form onSubmit={sendMessage} className="fixed bottom-[60px] left-0 right-0 flex justify-center bg-neutral-900/95 border-t border-neutral-800 px-4 py-3 z-40">
         <div className="w-full max-w-2xl flex flex-col gap-2">
           {file && (
