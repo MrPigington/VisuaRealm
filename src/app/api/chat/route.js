@@ -1,6 +1,6 @@
-import OpenAI from "openai";
+export const runtime = "nodejs"; // must be FIRST
 
-export const runtime = "nodejs";
+import OpenAI from "openai";
 
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -8,47 +8,47 @@ const client = new OpenAI({
 
 export async function POST(req) {
   try {
-    const contentType = req.headers.get("content-type") || "";
+    const type = req.headers.get("content-type") || "";
 
-    // 🟢 Handle plain JSON text chats
-    if (contentType.includes("application/json")) {
+    // 🟢 Handle plain JSON text
+    if (type.includes("application/json")) {
       const { messages } = await req.json();
       return await handleText(messages);
     }
 
-    // 🟣 Handle multipart form (text ± file)
-    if (contentType.includes("multipart/form-data")) {
-      const formData = await req.formData();
-      const messages = JSON.parse(formData.get("messages") || "[]");
-      const file = formData.get("file");
-      const userMessage = messages.at(-1)?.content || "";
+    // 🟣 Handle multipart (text ± image)
+    if (type.includes("multipart/form-data")) {
+      const form = await req.formData();
+      const messages = JSON.parse(form.get("messages") || "[]");
+      const file = form.get("file");
+      const userMsg = messages.at(-1)?.content || "";
 
-      // 🔸 If no file or empty file → just use text mode
+      // if no file or empty file, just text mode
       if (!(file instanceof File) || file.size === 0) {
-        console.log("🟢 No file uploaded — text-only mode");
+        console.log("🟢 No file uploaded — text-only path");
         return await handleText(messages);
       }
 
-      // 🖼 Convert file → data URL
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString("base64");
-      const mimeType = file.type || "image/png";
-      const dataUrl = `data:${mimeType};base64,${base64}`;
+      // convert stream → buffer (works on all Vercel runtimes)
+      const buf = await streamToBuffer(file.stream());
+      const base64 = Buffer.from(buf).toString("base64");
+      const mime = file.type || "image/png";
+      const dataUrl = `data:${mime};base64,${base64}`;
 
-      // 🤖 GPT-4o Vision response
+      // 🧠 GPT-4o Vision call
       const completion = await client.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
             content:
-              "You are VisuaRealm — an AI that can visually analyze uploaded images and describe them clearly in Markdown.",
+              "You are VisuaRealm — an AI that can analyze uploaded images and respond clearly in Markdown.",
           },
           ...messages,
           {
             role: "user",
             content: [
-              { type: "text", text: `Analyze this image and assist with: ${userMessage}` },
+              { type: "text", text: `Analyze this image and help with: ${userMsg}` },
               { type: "image_url", image_url: dataUrl },
             ],
           },
@@ -57,20 +57,23 @@ export async function POST(req) {
 
       const reply =
         completion.choices?.[0]?.message?.content?.trim() ||
-        "⚠️ No image analysis produced.";
-
+        "⚠️ No analysis produced.";
       return json(reply);
     }
 
-    // Unsupported type
+    // 🚫 Anything else
     return json("⚠️ Unsupported request type.", 400);
   } catch (err) {
     console.error("❌ Chat route error:", err);
-    return json("⚠️ Server error. Please try again later.", 500);
+    return json(
+      `⚠️ ${err.message || "Server error. Please try again later."}`,
+      500
+    );
   }
 }
 
-// ✳️ Helper for text-only chat
+// --- Helpers ------------------------------------------------------------
+
 async function handleText(messages = []) {
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
@@ -79,7 +82,7 @@ async function handleText(messages = []) {
       {
         role: "system",
         content:
-          "You are VisuaRealm — an intelligent AI assistant. Use Markdown and fenced code blocks for any code examples.",
+          "You are VisuaRealm — an intelligent assistant. Use Markdown and fenced code blocks for any code.",
       },
       ...messages,
     ],
@@ -90,10 +93,15 @@ async function handleText(messages = []) {
   return json(reply);
 }
 
-// 🧩 Utility for consistent responses
 function json(reply, status = 200) {
   return new Response(JSON.stringify({ reply }), {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+async function streamToBuffer(readable) {
+  const chunks = [];
+  for await (const chunk of readable) chunks.push(chunk);
+  return Buffer.concat(chunks);
 }
