@@ -8,7 +8,7 @@ export async function POST(req) {
   try {
     const contentType = req.headers.get("content-type") || "";
 
-    // 🟢 Text-only request
+    // 🟢 JSON request (text only)
     if (contentType.includes("application/json")) {
       const { messages } = await req.json();
 
@@ -18,7 +18,7 @@ export async function POST(req) {
           {
             role: "system",
             content:
-              "You are VisuaRealm — a creative, visual, and intelligent AI assistant. Format with Markdown and use code blocks when needed.",
+              "You are VisuaRealm — an intelligent and visually refined AI assistant. Use Markdown, and fenced code blocks for any code.",
           },
           ...messages,
         ],
@@ -31,7 +31,7 @@ export async function POST(req) {
       });
     }
 
-    // 🟣 File + message upload
+    // 🟣 Multipart request (text + file upload)
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const messages = JSON.parse(formData.get("messages"));
@@ -44,26 +44,26 @@ export async function POST(req) {
         });
       }
 
-      // Convert image to base64 string
+      // Convert file → Base64 string
       const arrayBuffer = await file.arrayBuffer();
       const base64 = Buffer.from(arrayBuffer).toString("base64");
       const mimeType = file.type || "image/png";
       const dataUrl = `data:${mimeType};base64,${base64}`;
 
-      // 🔥 Send image and user text to GPT-4o for reasoning
+      // 🔥 Send image to GPT-4o Vision
       const completion = await client.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
             content:
-              "You are VisuaRealm — an assistant that can see and understand images. Describe, analyze, or interpret them based on user context.",
+              "You are VisuaRealm — an AI that can analyze and describe uploaded images. Respond in Markdown.",
           },
           ...messages,
           {
             role: "user",
             content: [
-              { type: "text", text: messages[messages.length - 1]?.content || "" },
+              { type: "text", text: messages[messages.length - 1]?.content || "Analyze this image." },
               { type: "image_url", image_url: dataUrl },
             ],
           },
@@ -77,7 +77,6 @@ export async function POST(req) {
       });
     }
 
-    // Unknown request type
     return new Response(JSON.stringify({ reply: "Unsupported request type." }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
