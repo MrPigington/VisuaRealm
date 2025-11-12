@@ -14,12 +14,15 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={inter.className}>
-      <body className="bg-[#0d0d0d] text-gray-100 min-h-screen pb-24 relative">
+    <html lang="en">
+      {/* ✅ body gets className — html shouldn't have font class directly */}
+      <body
+        className={`${inter.className} bg-[#0d0d0d] text-gray-100 min-h-screen pb-24 relative`}
+      >
         {/* Main content area */}
         <div className="flex flex-col min-h-screen">{children}</div>
 
-        {/* 🔻 Bottom Navigation (persistent across pages) */}
+        {/* 🔻 Persistent bottom navigation */}
         <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 flex justify-around items-center py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.5)] border-t border-white/10 z-50">
           {[
             { label: "Main", path: "/" },

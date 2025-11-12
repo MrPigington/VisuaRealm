@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient"; // ✅ use @ alias (cleaner + TS-safe)
+import { supabase } from "@/lib/supabaseClient";
+
+export const dynamic = "force-dynamic"; // ✅ Fixes build crash on Vercel
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState<"signin" | "signup">("signin"); // ✅ proper typing
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
 
   // 🔁 Auto-redirect if already logged in
   useEffect(() => {
@@ -23,7 +25,10 @@ export default function LoginPage() {
   // 🔐 Handle Sign In
   async function handleSignIn() {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
     setLoading(false);
     if (error) alert(error.message);
     else router.push("/chat");
@@ -66,7 +71,11 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded font-semibold transition disabled:opacity-60"
         >
-          {loading ? "Processing..." : mode === "signin" ? "Sign In" : "Sign Up"}
+          {loading
+            ? "Processing..."
+            : mode === "signin"
+            ? "Sign In"
+            : "Sign Up"}
         </button>
 
         <p className="mt-4 text-center text-sm text-gray-600">
