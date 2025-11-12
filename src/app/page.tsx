@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import ProfileMenu from "@/components/ProfileMenu";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion"; // <— install if not: npm install framer-motion
+import { motion, AnimatePresence } from "framer-motion"; // npm install framer-motion
 
 interface Message {
   role: "user" | "assistant";
@@ -21,10 +21,12 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // 🧠 Live Note States
-  const [showLiveNote, setShowLiveNote] = useState(false);
-  const [liveNote, setLiveNote] = useState("");
+  // 🧠 Multi-Tab Note System
+  const [showNotes, setShowNotes] = useState(false);
+  const [notes, setNotes] = useState([{ id: 1, title: "main.js", content: "", type: "Code" }]);
+  const [activeId, setActiveId] = useState(1);
   const [noteLoading, setNoteLoading] = useState(false);
+  const activeNote = notes.find((n) => n.id === activeId)!;
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -67,31 +69,34 @@ export default function Page() {
     }
   }
 
-  // 🧩 Improve Live Note with AI
-  async function improveLiveNote() {
-    if (!liveNote.trim()) return;
+  // ✨ Multi-Tab Notes Logic
+  function addNote() {
+    const id = Date.now();
+    setNotes([...notes, { id, title: `note-${notes.length + 1}.txt`, content: "", type: "Note" }]);
+    setActiveId(id);
+  }
+
+  function updateNoteContent(value: string) {
+    setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: value } : n)));
+  }
+
+  function removeNote(id: number) {
+    setNotes(notes.filter((n) => n.id !== id));
+    if (activeId === id && notes.length > 1) setActiveId(notes[0].id);
+  }
+
+  async function improveNote() {
+    const note = notes.find((n) => n.id === activeId);
+    if (!note) return;
     setNoteLoading(true);
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [
-            ...messages,
-            {
-              role: "user",
-              content: `Enhance or continue my Live Note content:\n${liveNote}`,
-            },
-          ],
-        }),
+        body: JSON.stringify({ messages: [{ role: "user", content: note.content }] }),
       });
       const data = await res.json();
-      const newContent = data.reply?.replace(/^> \*\*[\s\S]*?\*\*\n\n/, "");
-      setLiveNote(newContent || liveNote);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "✅ Live Note updated." },
-      ]);
+      setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: data.reply } : n)));
     } catch (err) {
       console.error(err);
     } finally {
@@ -210,52 +215,70 @@ export default function Page() {
         </form>
       </section>
 
-      {/* 🧠 Live Note Toggle Button */}
+      {/* 🧠 Multi-Tab Live Notes */}
       <button
-        onClick={() => setShowLiveNote((prev) => !prev)}
-        className="fixed bottom-24 right-4 bg-gradient-to-r from-green-500 to-emerald-700 text-black px-4 py-2 rounded-full text-sm font-semibold hover:opacity-90 shadow-lg transition-all z-50"
+        onClick={() => setShowNotes((p) => !p)}
+        className="fixed bottom-24 right-4 bg-gradient-to-r from-green-400 to-emerald-600 text-black px-4 py-2 rounded-full font-semibold hover:opacity-90 shadow-lg z-50"
       >
-        {showLiveNote ? "🧠 Close Note" : "📝 Live Note"}
+        {showNotes ? "🧠 Close Notes" : "📂 Notes"}
       </button>
 
-      {/* 🟩 Live Note Box */}
       <AnimatePresence>
-        {showLiveNote && (
+        {showNotes && (
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 40 }}
             transition={{ duration: 0.25 }}
-            className="fixed bottom-24 right-4 w-[90%] sm:w-[600px] h-[300px] rounded-xl bg-black/90 border border-green-500/50 shadow-[0_0_25px_rgba(0,255,0,0.2)] overflow-hidden flex flex-col font-mono z-50"
+            className="fixed bottom-24 right-4 w-[90%] sm:w-[650px] h-[360px] bg-black/90 border border-green-600/50 rounded-xl shadow-[0_0_25px_rgba(0,255,0,0.15)] font-mono text-green-400 flex flex-col z-50"
           >
-            <div className="flex justify-between items-center px-3 py-2 bg-black/70 border-b border-green-700/40">
-              <span className="text-green-400 text-sm font-semibold">🧠 Live Note Terminal</span>
-              <button
-                onClick={() => setShowLiveNote(false)}
-                className="text-green-400 hover:text-green-200 text-sm"
-              >
-                ✕
+            {/* Tabs */}
+            <div className="flex items-center bg-black/70 border-b border-green-700/40 overflow-x-auto">
+              {notes.map((n) => (
+                <div
+                  key={n.id}
+                  onClick={() => setActiveId(n.id)}
+                  className={`px-3 py-1 cursor-pointer whitespace-nowrap ${
+                    n.id === activeId ? "bg-green-700/30" : "hover:bg-green-800/20"
+                  }`}
+                >
+                  {n.title}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeNote(n.id);
+                    }}
+                    className="ml-2 text-green-400 hover:text-green-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <button onClick={addNote} className="ml-auto px-3 py-1 text-green-400 hover:text-green-200">
+                ＋
               </button>
             </div>
 
+            {/* Editor */}
             <textarea
-              value={liveNote}
-              onChange={(e) => setLiveNote(e.target.value)}
-              placeholder="Type ideas, plans, or code here..."
-              className="flex-1 bg-black text-green-400 placeholder-green-700 text-sm p-3 outline-none resize-none overflow-y-auto"
+              value={activeNote?.content || ""}
+              onChange={(e) => updateNoteContent(e.target.value)}
+              placeholder="Type code or notes here..."
+              className="flex-1 bg-black text-green-400 text-sm p-3 outline-none resize-none"
             />
 
-            <div className="flex justify-end gap-3 p-3 border-t border-green-700/40 bg-black/70">
+            {/* Footer */}
+            <div className="flex justify-end gap-2 p-2 border-t border-green-700/40 bg-black/70">
               <button
-                onClick={() => navigator.clipboard.writeText(liveNote)}
-                className="px-3 py-1.5 text-xs bg-green-700/30 hover:bg-green-700/50 text-green-300 rounded-md transition"
+                onClick={() => navigator.clipboard.writeText(activeNote?.content || "")}
+                className="text-xs bg-green-700/30 hover:bg-green-700/50 text-green-300 px-3 py-1 rounded-md"
               >
                 Copy
               </button>
               <button
-                onClick={improveLiveNote}
+                onClick={improveNote}
                 disabled={noteLoading}
-                className="px-4 py-1.5 text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-black font-semibold rounded-md hover:opacity-90 transition"
+                className="text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-black font-semibold px-3 py-1 rounded-md hover:opacity-90"
               >
                 {noteLoading ? "Thinking..." : "Improve"}
               </button>
