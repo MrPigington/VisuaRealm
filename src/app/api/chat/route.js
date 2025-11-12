@@ -9,12 +9,13 @@ export async function POST(req) {
   try {
     const type = req.headers.get("content-type") || "";
 
-    // 🧠 Detect message type
+    // 🧠 Handle JSON (text only)
     if (type.includes("application/json")) {
       const { messages } = await req.json();
       return await handleUniversal(messages);
     }
 
+    // 🖼 Handle multipart (text + image)
     if (type.includes("multipart/form-data")) {
       const form = await req.formData();
       const messages = JSON.parse(form.get("messages") || "[]");
@@ -24,6 +25,7 @@ export async function POST(req) {
         return await handleUniversal(messages);
       }
 
+      // Convert to base64 for GPT-4o Vision
       const buf = await streamToBuffer(file.stream());
       const base64 = Buffer.from(buf).toString("base64");
       const mime = file.type || "image/png";
@@ -42,9 +44,9 @@ export async function POST(req) {
 /* ------------------ Core Logic ------------------ */
 
 async function handleUniversal(messages = [], image = null) {
-  // 🧠 Detect general intent of last message
   const last = messages.at(-1)?.content?.toLowerCase() || "";
   const context = detectContext(last);
+  const mode = detectMode(last);
 
   const visionBlock = image
     ? [
@@ -67,6 +69,10 @@ async function handleUniversal(messages = [], image = null) {
         role: "system",
         content: `
 You are VisuaRealm — a friendly, intelligent mentor that helps users learn and build anything.
+
+Current Mode: ${mode}
+Context: ${context}
+
 Always respond in this format, even if it's code, design, or advice:
 
 ## 💬 Main Response
@@ -78,10 +84,12 @@ Always respond in this format, even if it's code, design, or advice:
 ## 🚀 Next Steps
 (Encouraging, practical guidance on what to try, learn, or improve next.)
 
-Make your tone supportive, clear, and a bit human — never robotic.  
-Always explain **why** something works, not just what it does.  
-If the question is code-related, include syntax-highlighted examples and explanations.  
-If it’s real-world, end with motivation or a useful insight.`,
+Tone:
+- Be supportive, clear, and conversational — never robotic.
+- Explain WHY something works, not just WHAT it does.
+- For code: include syntax-highlighted examples and reasoning.
+- For design or life questions: end with insight or motivation.
+        `.trim(),
       },
       ...messages,
       ...visionBlock,
@@ -94,6 +102,7 @@ If it’s real-world, end with motivation or a useful insight.`,
 
 /* ------------------ Helper Functions ------------------ */
 
+// Context detection
 function detectContext(text = "") {
   if (/(react|js|code|function|api|python|c\+\+|html|css|unreal|ue5)/.test(text))
     return "🧠 Programming & Tech";
@@ -106,6 +115,15 @@ function detectContext(text = "") {
   if (/(life|mindset|learning|study|growth|focus)/.test(text))
     return "🌱 Learning & Self-Improvement";
   return "💬 General";
+}
+
+// Tone / depth detection
+function detectMode(text = "") {
+  text = text.toLowerCase();
+  if (text.includes("code") || text.includes("build") || text.includes("fix")) return "⚙️ Code Mode";
+  if (text.includes("learn") || text.includes("explain") || text.includes("teach")) return "🧠 Learn Mode";
+  if (text.includes("idea") || text.includes("plan") || text.includes("insight")) return "🎯 Insight Mode";
+  return "🧠 Learn Mode";
 }
 
 function formatWithContext(context, reply) {
