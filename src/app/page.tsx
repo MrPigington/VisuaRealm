@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import ProfileMenu from "@/components/ProfileMenu";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion"; // <— install if not: npm install framer-motion
 
 interface Message {
   role: "user" | "assistant";
@@ -19,6 +20,11 @@ export default function Page() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // 🧠 Live Note States
+  const [showLiveNote, setShowLiveNote] = useState(false);
+  const [liveNote, setLiveNote] = useState("");
+  const [noteLoading, setNoteLoading] = useState(false);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -58,6 +64,38 @@ export default function Page() {
     } finally {
       setFile(null);
       setLoading(false);
+    }
+  }
+
+  // 🧩 Improve Live Note with AI
+  async function improveLiveNote() {
+    if (!liveNote.trim()) return;
+    setNoteLoading(true);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [
+            ...messages,
+            {
+              role: "user",
+              content: `Enhance or continue my Live Note content:\n${liveNote}`,
+            },
+          ],
+        }),
+      });
+      const data = await res.json();
+      const newContent = data.reply?.replace(/^> \*\*[\s\S]*?\*\*\n\n/, "");
+      setLiveNote(newContent || liveNote);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "✅ Live Note updated." },
+      ]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setNoteLoading(false);
     }
   }
 
@@ -172,8 +210,62 @@ export default function Page() {
         </form>
       </section>
 
+      {/* 🧠 Live Note Toggle Button */}
+      <button
+        onClick={() => setShowLiveNote((prev) => !prev)}
+        className="fixed bottom-24 right-4 bg-gradient-to-r from-green-500 to-emerald-700 text-black px-4 py-2 rounded-full text-sm font-semibold hover:opacity-90 shadow-lg transition-all z-50"
+      >
+        {showLiveNote ? "🧠 Close Note" : "📝 Live Note"}
+      </button>
+
+      {/* 🟩 Live Note Box */}
+      <AnimatePresence>
+        {showLiveNote && (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.25 }}
+            className="fixed bottom-24 right-4 w-[90%] sm:w-[600px] h-[300px] rounded-xl bg-black/90 border border-green-500/50 shadow-[0_0_25px_rgba(0,255,0,0.2)] overflow-hidden flex flex-col font-mono z-50"
+          >
+            <div className="flex justify-between items-center px-3 py-2 bg-black/70 border-b border-green-700/40">
+              <span className="text-green-400 text-sm font-semibold">🧠 Live Note Terminal</span>
+              <button
+                onClick={() => setShowLiveNote(false)}
+                className="text-green-400 hover:text-green-200 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <textarea
+              value={liveNote}
+              onChange={(e) => setLiveNote(e.target.value)}
+              placeholder="Type ideas, plans, or code here..."
+              className="flex-1 bg-black text-green-400 placeholder-green-700 text-sm p-3 outline-none resize-none overflow-y-auto"
+            />
+
+            <div className="flex justify-end gap-3 p-3 border-t border-green-700/40 bg-black/70">
+              <button
+                onClick={() => navigator.clipboard.writeText(liveNote)}
+                className="px-3 py-1.5 text-xs bg-green-700/30 hover:bg-green-700/50 text-green-300 rounded-md transition"
+              >
+                Copy
+              </button>
+              <button
+                onClick={improveLiveNote}
+                disabled={noteLoading}
+                className="px-4 py-1.5 text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-black font-semibold rounded-md hover:opacity-90 transition"
+              >
+                {noteLoading ? "Thinking..." : "Improve"}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 flex justify-around items-center py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.5)] border-t border-white/10 z-50">
+      <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 flex justify-around items-center py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.5)] border-t border-white/10 z-40">
         {[
           { label: "Main", path: "/" },
           { label: "Chat", path: "/chat" },
