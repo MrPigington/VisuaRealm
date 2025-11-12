@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import ProfileMenu from "@/components/ProfileMenu";
+import Link from "next/link";
 
 interface Message {
   role: "user" | "assistant";
@@ -27,9 +28,7 @@ export default function Page() {
     e.preventDefault();
     if (!input.trim() && !file) return;
 
-    // Create local preview URL if file exists
     const fileUrl = file ? URL.createObjectURL(file) : undefined;
-
     const userMessage: Message = {
       role: "user",
       content: input || (file ? "📎 Uploaded an image:" : ""),
@@ -48,7 +47,6 @@ export default function Page() {
     try {
       const res = await fetch("/api/chat", { method: "POST", body: formData });
       const data = await res.json();
-
       const botMessage: Message = { role: "assistant", content: data.reply };
       setMessages((prev) => [...prev, botMessage]);
     } catch (err) {
@@ -79,26 +77,14 @@ export default function Page() {
   };
 
   return (
-    <main className="flex min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative">
-      {/* Sidebar */}
-      <aside className="w-20 bg-gradient-to-b from-purple-600 to-blue-600 flex flex-col items-center py-6 space-y-6 shadow-2xl">
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center hover:bg-white/20 transition"
-          >
-            <span className="text-xs font-semibold opacity-80">{i + 1}</span>
-          </div>
-        ))}
-      </aside>
-
+    <main className="flex flex-col min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative pb-24">
       {/* Profile Button */}
       <div className="absolute top-4 right-4 z-50">
         <ProfileMenu />
       </div>
 
       {/* Chat Section */}
-      <section className="flex-1 flex flex-col items-center justify-between">
+      <section className="flex-1 flex flex-col items-center justify-between pb-24">
         {/* Messages */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
@@ -114,7 +100,6 @@ export default function Page() {
                 {msg.content}
               </ReactMarkdown>
 
-              {/* 🖼 Image Preview */}
               {msg.fileUrl && (
                 <img
                   src={msg.fileUrl}
@@ -136,27 +121,24 @@ export default function Page() {
           className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center"
         >
           <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg overflow-visible relative">
-            {/* 📎 Upload Button */}
+            {/* Upload */}
             <div className="relative flex items-center">
               <input
                 type="file"
                 id="file-upload"
                 accept="image/*"
                 className="hidden"
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setFile(e.target.files?.[0] || null)
-                }
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)}
               />
               <label
                 htmlFor="file-upload"
-                className="cursor-pointer flex items-center justify-center w-9 h-9 rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200 transition duration-150"
+                className="cursor-pointer flex items-center justify-center w-9 h-9 rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200 transition"
                 title="Upload Image"
               >
                 📎
               </label>
             </div>
 
-            {/* File Name */}
             {file && (
               <div className="flex items-center gap-2 text-xs text-gray-400 truncate max-w-[140px]">
                 <span className="truncate">{file.name}</span>
@@ -171,7 +153,6 @@ export default function Page() {
               </div>
             )}
 
-            {/* Text Input */}
             <input
               type="text"
               value={input}
@@ -180,7 +161,6 @@ export default function Page() {
               className="flex-1 bg-transparent text-sm sm:text-base text-gray-100 placeholder-gray-500 outline-none"
             />
 
-            {/* Send Button */}
             <button
               type="submit"
               disabled={loading}
@@ -191,6 +171,27 @@ export default function Page() {
           </div>
         </form>
       </section>
+
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 flex justify-around items-center py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.5)] border-t border-white/10 z-50">
+        {[
+          { label: "Main", path: "/" },
+          { label: "Chat", path: "/chat" },
+          { label: "Research", path: "/research" },
+          { label: "Notepad", path: "/notepad" },
+          { label: "Projects", path: "/projects" },
+          { label: "Whiteboard", path: "/whiteboard" },
+        ].map((item, i) => (
+          <Link
+            key={i}
+            href={item.path}
+            className="flex flex-col items-center justify-center text-white/90 hover:text-white transition w-full"
+          >
+            <span className="text-lg leading-none mb-1">●</span>
+            <span className="text-xs font-medium">{item.label}</span>
+          </Link>
+        ))}
+      </nav>
     </main>
   );
 }
