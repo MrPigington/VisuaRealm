@@ -32,7 +32,7 @@ export default function Page() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 🧩 Smart Split: Recap + Links
+  // 🧩 Split for Recaps + Links
   function splitResponse(content: string) {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
 
@@ -48,14 +48,12 @@ export default function Page() {
   }
 
   // 📨 Send Message
-  async function sendMessage(e: FormEvent, followUpText?: string) {
-    e?.preventDefault?.();
-    if (!input.trim() && !file && !followUpText) return;
+  async function sendMessage(e: FormEvent) {
+    e.preventDefault();
+    if (!input.trim() && !file) return;
 
-    const userContent = followUpText || input;
     const fileUrl = file ? URL.createObjectURL(file) : undefined;
-
-    const userMessage: Message = { role: "user", content: userContent, fileUrl };
+    const userMessage: Message = { role: "user", content: input, fileUrl };
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput("");
@@ -71,32 +69,36 @@ export default function Page() {
       const reply = data.reply || "";
       const { main, recaps, urls } = splitResponse(reply);
 
+      // main message
       setMessages((prev) => [...prev, { role: "assistant", content: main }]);
 
+      // recap bubble(s)
       recaps.forEach((r, i) =>
-        setTimeout(() => setMessages((prev) => [...prev, { role: "assistant", content: r }]), 400 + i * 200)
+        setTimeout(
+          () => setMessages((prev) => [...prev, { role: "assistant", content: r }]),
+          400 + i * 300
+        )
       );
 
+      // green link bubble
       if (urls.length > 0) {
-        const linksText = "🔗 Resource Links:\n" + urls.map((u) => `- [${u}](${u})`).join("\n");
+        const linksText =
+          "🔗 Resource Links:\n" + urls.map((u) => `- [${u}](${u})`).join("\n");
         setTimeout(
           () => setMessages((prev) => [...prev, { role: "assistant", content: linksText }]),
-          600 + recaps.length * 200
+          600 + recaps.length * 300
         );
       }
     } catch (err) {
       console.error("API error:", err);
-      setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Error: Could not reach the API." }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "⚠️ Error: Could not reach the API." },
+      ]);
     } finally {
       setFile(null);
       setLoading(false);
     }
-  }
-
-  // 💡 Instant Ask
-  async function quickAsk(message: string) {
-    const followUp = `Expand more on: "${message.slice(0, 300)}..."`;
-    await sendMessage({ preventDefault: () => {} } as FormEvent, followUp);
   }
 
   // 🧠 Notes Logic
@@ -152,20 +154,32 @@ export default function Page() {
     },
   };
 
+  // 💡 Ask handler (only focuses + prefills)
+  function handleQuickAsk(msg: string) {
+    setInput(`Expand on this part: "${msg.slice(0, 120)}..."`);
+    const inputEl = document.querySelector<HTMLInputElement>("input[type='text']");
+    inputEl?.focus();
+  }
+
   return (
     <main className="flex flex-col min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative pb-[120px]">
-      {/* Profile Button */}
+      {/* Profile */}
       <div className="absolute top-4 right-4 z-50">
         <ProfileMenu />
       </div>
 
-      {/* Chat Section */}
+      {/* Chat */}
       <section className="flex-1 flex flex-col items-center justify-between pb-[120px]">
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
               <div
-                className={`relative max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed break-words shadow-lg transition ${
+                className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed break-words shadow-lg transition ${
                   msg.role === "user"
                     ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
                     : msg.content.startsWith("📘 Quick Recap")
@@ -183,8 +197,8 @@ export default function Page() {
                   !msg.content.startsWith("📘 Quick Recap") &&
                   !msg.content.startsWith("🔗 Resource Links") && (
                     <button
-                      onClick={() => quickAsk(msg.content)}
-                      className="text-xs mt-2 px-2 py-1 rounded-md bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 transition"
+                      onClick={() => handleQuickAsk(msg.content)}
+                      className="text-xs mt-2 px-2 py-1 rounded-md bg-blue-600/20 hover:bg-blue-600/40 text-blue-200 transition"
                     >
                       💡 Ask
                     </button>
@@ -197,7 +211,7 @@ export default function Page() {
         </div>
       </section>
 
-      {/* Input Bar */}
+      {/* Input */}
       <form onSubmit={sendMessage} className="fixed bottom-[60px] left-0 right-0 flex justify-center bg-neutral-900/95 border-t border-neutral-800 px-4 sm:px-6 py-3 z-40">
         <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
           <label htmlFor="file-upload" className="cursor-pointer flex items-center justify-center w-9 h-9 rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200 transition" title="Upload Image">
