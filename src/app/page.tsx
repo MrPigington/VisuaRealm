@@ -30,6 +30,7 @@ export default function Page() {
       role: "user",
       content: input || (file ? `📎 Uploaded: ${file.name}` : ""),
     };
+
     const updatedMessages = [...messages, userMessage];
     setMessages(updatedMessages);
     setInput("");
@@ -92,7 +93,7 @@ export default function Page() {
 
       {/* Chat Section */}
       <section className="flex-1 flex flex-col items-center justify-between">
-        {/* Messages */}
+        {/* Chat Messages */}
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-4 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
           {messages.map((msg, i) => (
             <div
@@ -117,29 +118,35 @@ export default function Page() {
           onSubmit={sendMessage}
           className="w-full bg-neutral-900/90 border-t border-neutral-800 px-4 sm:px-6 py-4 flex justify-center"
         >
-          <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg">
+          <div className="w-full max-w-2xl flex items-center gap-3 bg-neutral-800 rounded-full px-4 py-2 shadow-lg overflow-visible relative">
             
-            {/* Upload Button (VISIBLE) */}
-            <button
-              type="button"
-              onClick={() => document.getElementById("file-upload")?.click()}
-              className="px-3 py-2 bg-neutral-700 rounded-full text-gray-200 hover:bg-neutral-600 transition text-sm"
-            >
-              📎 Upload
-            </button>
-            <input
-              type="file"
-              id="file-upload"
-              className="hidden"
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)}
-            />
+            {/* 📎 Upload Button */}
+            <div className="relative flex items-center">
+              <input
+                type="file"
+                id="file-upload"
+                accept="image/*"
+                className="hidden"
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] || null)}
+              />
+              <label
+                htmlFor="file-upload"
+                className="cursor-pointer flex items-center justify-center w-9 h-9 rounded-full bg-neutral-700 hover:bg-neutral-600 text-lg text-gray-200 transition duration-150"
+                title="Upload Image"
+              >
+                📎
+              </label>
+            </div>
+
+            {/* File Name */}
             {file && (
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <span>{file.name}</span>
+              <div className="flex items-center gap-2 text-xs text-gray-400 truncate max-w-[140px]">
+                <span className="truncate">{file.name}</span>
                 <button
                   type="button"
                   className="text-red-400 hover:text-red-300"
                   onClick={() => setFile(null)}
+                  title="Remove file"
                 >
                   ✕
                 </button>
@@ -159,9 +166,9 @@ export default function Page() {
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition"
+              className="flex items-center justify-center px-4 py-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold hover:opacity-90 active:scale-95 transition"
             >
-              Send
+              {loading ? "..." : "Send"}
             </button>
           </div>
         </form>
