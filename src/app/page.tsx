@@ -15,6 +15,13 @@ interface Message {
   fileUrl?: string;
 }
 
+interface Note {
+  id: number;
+  title: string;
+  content: string;
+  editing: boolean;
+}
+
 export default function Page() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -24,33 +31,44 @@ export default function Page() {
 
   // Notes
   const [showNotes, setShowNotes] = useState(false);
-  const [notes, setNotes] = useState([{ id: 1, title: "main.js", content: "", editing: false }]);
+  const [notes, setNotes] = useState<Note[]>([
+    { id: 1, title: "main.js", content: "", editing: false },
+  ]);
   const [activeId, setActiveId] = useState(1);
   const [noteLoading, setNoteLoading] = useState(false);
   const activeNote = notes.find((n) => n.id === activeId)!;
 
+  // Scroll to bottom when messages update
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  // Split response into main + recaps + urls
+  // --- Response parsing ---
   function splitResponse(content: string) {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
-    if (normalized.includes("```") || normalized.includes("{")) return { main: normalized, recaps: [], urls: [] };
+
+    if (normalized.includes("```") || normalized.includes("{")) {
+      return { main: normalized, recaps: [], urls: [] };
+    }
+
     const recapRegex = /(📘 Quick Recap[:\s\S]*?)(?=$|\n{2,}|$)/gi;
     const recaps = [...normalized.matchAll(recapRegex)].map((m) => m[0].trim());
     const withoutRecaps = normalized.replace(recapRegex, "").trim();
+
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
     const urls = [...withoutRecaps.matchAll(urlRegex)].map((m) => m[0]);
     const main = withoutRecaps.replace(urlRegex, "").trim();
+
     return { main, recaps, urls };
   }
 
+  // --- Send message ---
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
     if (!input.trim() && !file) return;
 
     const userMessage: Message = { role: "user", content: input, fileUrl: file ? URL.createObjectURL(file) : undefined };
     setMessages((prev) => [...prev, userMessage]);
-    setInput(""); setLoading(true);
+    setInput("");
+    setLoading(true);
 
     const formData = new FormData();
     formData.append("messages", JSON.stringify([...messages, userMessage]));
@@ -62,8 +80,15 @@ export default function Page() {
       const reply = data.reply || "";
       const { main, recaps, urls } = splitResponse(reply);
 
+      // Add main message
       setMessages((prev) => [...prev, { role: "assistant", content: main }]);
-      recaps.forEach((r) => setMessages((prev) => [...prev, { role: "assistant", content: r, type: "recap" }]));
+
+      // Add recap bubbles separately
+      recaps.forEach((r) => {
+        setMessages((prev) => [...prev, { role: "assistant", content: r, type: "recap" }]);
+      });
+
+      // Add link bubbles separately
       if (urls.length > 0) {
         const linksText = "🔗 Resource Links:\n" + urls.map((u) => `- [${u}](${u})`).join("\n");
         setMessages((prev) => [...prev, { role: "assistant", content: linksText, type: "recap" }]);
@@ -71,29 +96,63 @@ export default function Page() {
     } catch (err) {
       console.error(err);
       setMessages((prev) => [...prev, { role: "assistant", content: "⚠️ Error: Could not reach the API." }]);
-    } finally { setFile(null); setLoading(false); }
+    } finally {
+      setFile(null);
+      setLoading(false);
+    }
   }
 
-  // Notes logic
-  function addNote() { const id = Date.now(); setNotes([...notes, { id, title: `note-${notes.length + 1}.txt`, content: "", editing: false }]); setActiveId(id); }
+  // --- Notes logic ---
+  function addNote() { 
+    const id = Date.now(); 
+    setNotes([...notes, { id, title: `note-${notes.length + 1}.txt`, content: "", editing: false }]); 
+    setActiveId(id); 
+  }
   function updateNoteContent(value: string) { setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: value } : n))); }
   function renameNote(id: number, newTitle: string) { setNotes(notes.map((n) => (n.id === activeId ? { ...n, title: newTitle, editing: false } : n))); }
   function removeNote(id: number) { setNotes(notes.filter((n) => n.id !== id)); if (activeId === id && notes.length > 1) setActiveId(notes[0].id); }
-  async function improveNote() { const note = notes.find((n) => n.id === activeId); if (!note) return; setNoteLoading(true); try { const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: note.content }] }) }); const data = await res.json(); setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: data.reply } : n))); } catch (err) { console.error(err); } finally { setNoteLoading(false); } }
+  async function improveNote() { 
+    const note = notes.find((n) => n.id === activeId); 
+    if (!note) return; 
+    setNoteLoading(true); 
+    try { 
+      const res = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: note.content }] }) }); 
+      const data = await res.json(); 
+      setNotes(notes.map((n) => (n.id === activeId ? { ...n, content: data.reply } : n))); 
+    } catch (err) { console.error(err); } finally { setNoteLoading(false); } 
+  }
 
-  const markdownComponents: Components = { code({ className, children }) { const match = /language-(\w+)/.exec(className || ""); return match ? (<pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2"><code>{String(children).replace(/\n$/, "")}</code></pre>) : (<code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">{children}</code>); } };
+  const markdownComponents: Components = { 
+    code({ className, children }) { 
+      const match = /language-(\w+)/.exec(className || ""); 
+      return match ? (
+        <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
+          <code>{String(children).replace(/\n$/, "")}</code>
+        </pre>
+      ) : (
+        <code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">{children}</code>
+      );
+    } 
+  };
 
   return (
     <main className="flex flex-col min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative pb-[120px]">
       <div className="absolute top-4 right-4 z-50"><ProfileMenu /></div>
 
-      {/* Chat */}
+      {/* Chat Section */}
       <section className="flex-1 flex flex-col items-center justify-between pb-[120px]">
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6">
           {messages.map((msg, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-              <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-lg ${msg.role === "user" ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white" : msg.type === "recap" ? "bg-blue-900/30 border border-blue-400/30 italic text-blue-100" : "bg-neutral-900 border border-neutral-800 text-gray-200"}`}>
+              <div className={`max-w-[85%] p-4 rounded-2xl text-sm shadow-lg ${
+                msg.role === "user"
+                  ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                  : msg.type === "recap"
+                  ? "bg-blue-900/30 border border-blue-400/30 italic text-blue-100"
+                  : "bg-neutral-900 border border-neutral-800 text-gray-200"
+              }`}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{msg.content}</ReactMarkdown>
+                {msg.fileUrl && <img src={msg.fileUrl} className="mt-2 max-w-full rounded-md" />}
               </div>
             </motion.div>
           ))}
@@ -122,10 +181,8 @@ export default function Page() {
         {showNotes && (
           <motion.div initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }} transition={{ duration: 0.25 }}
             className="fixed bottom-20 right-4 w-[90%] sm:w-[650px] h-[360px] bg-black/90 border border-green-600/50 rounded-xl shadow-lg font-mono text-green-400 flex flex-col z-50">
-            <div className="relative flex items-center">
-              {/* Exit button */}
-              <button onClick={() => setShowNotes(false)} className="absolute right-3 top-2 text-green-400 hover:text-green-200 text-lg z-50">✕</button>
-              <div className="flex-1 flex items-center overflow-x-auto bg-black/70 border-b border-green-700/40">
+            <div className="flex-1 flex flex-col">
+              <div className="flex items-center overflow-x-auto bg-black/70 border-b border-green-700/40">
                 {notes.map(n => (
                   <div key={n.id} onClick={() => setActiveId(n.id)} className={`flex items-center px-3 py-1 cursor-pointer ${n.id === activeId ? "bg-green-700/30" : "hover:bg-green-800/20"}`}>
                     {n.editing ? (
@@ -133,16 +190,16 @@ export default function Page() {
                     ) : (
                       <span onDoubleClick={() => setNotes(notes.map(x => x.id === n.id ? {...x, editing:true} : x))}>{n.title}</span>
                     )}
-                    <button onClick={e => {e.stopPropagation(); removeNote(n.id)}} className="ml-2 text-green-400 hover:text-green-200">✕</button>
+                    <button onClick={e => { e.stopPropagation(); removeNote(n.id); }} className="ml-2 text-green-400 hover:text-green-200">✕</button>
                   </div>
                 ))}
                 <button onClick={addNote} className="ml-auto px-3 py-1 text-green-400 hover:text-green-200">＋</button>
               </div>
-            </div>
-            <textarea value={activeNote?.content || ""} onChange={e => updateNoteContent(e.target.value)} placeholder="Type code or notes here..." className="flex-1 bg-black text-green-400 text-sm p-3 outline-none resize-none"/>
-            <div className="flex justify-end gap-2 p-2 border-t border-green-700/40 bg-black/70">
-              <button onClick={() => navigator.clipboard.writeText(activeNote?.content || "")} className="text-xs bg-green-700/30 hover:bg-green-700/50 text-green-300 px-3 py-1 rounded-md">Copy</button>
-              <button onClick={improveNote} disabled={noteLoading} className="text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-black font-semibold px-3 py-1 rounded-md hover:opacity-90">{noteLoading ? "Thinking..." : "Improve"}</button>
+              <textarea value={activeNote?.content || ""} onChange={e => updateNoteContent(e.target.value)} placeholder="Type code or notes here..." className="flex-1 bg-black text-green-400 text-sm p-3 outline-none resize-none"/>
+              <div className="flex justify-end gap-2 p-2 border-t border-green-700/40 bg-black/70">
+                <button onClick={() => navigator.clipboard.writeText(activeNote?.content || "")} className="text-xs bg-green-700/30 hover:bg-green-700/50 text-green-300 px-3 py-1 rounded-md">Copy</button>
+                <button onClick={improveNote} disabled={noteLoading} className="text-xs bg-gradient-to-r from-green-500 to-emerald-600 text-black font-semibold px-3 py-1 rounded-md hover:opacity-90">{noteLoading ? "Thinking..." : "Improve"}</button>
+              </div>
             </div>
           </motion.div>
         )}
