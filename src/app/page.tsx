@@ -36,21 +36,18 @@ export default function ChatPage() {
   const [showNotes, setShowNotes] = useState(true);
   const [improving, setImproving] = useState(false);
 
-  // BELOW FEATURES
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
-  // 🔐 Supabase user check
+  // Supabase auth
   useEffect(() => {
-    const checkUser = async () => {
-      const { data } = await supabase.auth.getUser();
+    supabase.auth.getUser().then(({ data }) => {
       setUser(data?.user || null);
-    };
-    checkUser();
+    });
   }, []);
 
-  // 📝 Load notes from storage
+  // Load notes
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -68,14 +65,14 @@ export default function ChatPage() {
     } catch {}
   }, []);
 
-  // 📝 Save notes
+  // Save notes
   useEffect(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem("visuarealm_notes", JSON.stringify(notes));
     localStorage.setItem("visuarealm_active_note", String(activeNote));
   }, [notes, activeNote]);
 
-  // 🖼️ File preview
+  // File preview
   useEffect(() => {
     if (!file) return setFilePreviewUrl(null);
     const url = URL.createObjectURL(file);
@@ -83,12 +80,12 @@ export default function ChatPage() {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  // 🔄 scroll on new messages
+  // Auto scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // 🠗 scroll button visibility
+  // Scroll detection
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -102,7 +99,7 @@ export default function ChatPage() {
     return () => el.removeEventListener("scroll", handleScroll);
   }, [messages.length]);
 
-  // ESC hides notes
+  // ESC closes notes
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (e.key === "Escape") setShowNotes(false);
@@ -110,11 +107,6 @@ export default function ChatPage() {
     window.addEventListener("keydown", fn);
     return () => window.removeEventListener("keydown", fn);
   }, []);
-
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    setUser(null);
-  }
 
   function addNote() {
     const newNote: Note = {
@@ -146,6 +138,7 @@ export default function ChatPage() {
 
   function splitResponse(content: string) {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
+
     if (normalized.includes("```") || normalized.includes("{"))
       return { main: normalized, recap: null, urls: [] };
 
@@ -158,11 +151,7 @@ export default function ChatPage() {
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
     const urls = [...withoutRecap.matchAll(urlRegex)].map((m) => m[0]);
 
-    return {
-      main: withoutRecap.replace(urlRegex, "").trim(),
-      recap,
-      urls,
-    };
+    return { main: withoutRecap.replace(urlRegex, "").trim(), recap, urls };
   }
 
   async function sendMessage(e: FormEvent) {
@@ -219,6 +208,7 @@ export default function ChatPage() {
     }
   }
 
+  // Improve note
   async function handleSmartImprove() {
     const note = notes.find((n) => n.id === activeNote);
     if (!note?.content.trim()) return alert("Note is empty.");
@@ -275,7 +265,8 @@ ${note.content}
 
   return (
     <main className="flex flex-col min-h-screen bg-[#0d0d0d] text-gray-100">
-      {/* HEADER */}
+
+      {/* Header */}
       <header className="sticky top-0 bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 z-40">
         <div className="flex items-center gap-3">
           <button
@@ -291,7 +282,10 @@ ${note.content}
                 Signed in as <b>{user.email}</b>
               </span>
               <button
-                onClick={handleLogout}
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  setUser(null);
+                }}
                 className="bg-red-500 px-3 py-1 rounded text-white"
               >
                 Log Out
@@ -308,7 +302,7 @@ ${note.content}
         </div>
       </header>
 
-      {/* NOTES PANEL */}
+      {/* Notes Panel */}
       {showNotes && (
         <section className="bg-neutral-900 border-b border-neutral-800 p-4 max-h-[35vh] overflow-y-auto">
           <div className="flex justify-between mb-3">
@@ -372,9 +366,8 @@ ${note.content}
         </section>
       )}
 
-      {/* CHAT */}
-      <section className="flex-1 flex flex-col items-center pb-[130px]">
-        {/* FIX: Add pb-130 to prevent overlap */}
+      {/* Chat */}
+      <section className="flex-1 flex flex-col items-center pb-[150px]">
         <div
           ref={scrollContainerRef}
           className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6"
@@ -414,7 +407,7 @@ ${note.content}
         </div>
       </section>
 
-      {/* Scroll to bottom button */}
+      {/* Scroll to bottom */}
       {showScrollToBottom && (
         <button
           onClick={() =>
@@ -423,25 +416,25 @@ ${note.content}
               behavior: "smooth",
             })
           }
-          className="fixed bottom-28 left-6 bg-neutral-900/90 border border-neutral-700 px-3 py-1 rounded-full text-xs"
+          className="fixed bottom-[90px] left-6 bg-neutral-900/90 border border-neutral-700 px-3 py-1 rounded-full text-xs z-50"
         >
           ↓ Jump to latest
         </button>
       )}
 
-      {/* SMART IMPROVE */}
+      {/* Smart Improve */}
       {showNotes && (
         <button
           onClick={handleSmartImprove}
           disabled={improving}
-          className="fixed bottom-28 right-6 bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 rounded-full text-white shadow-lg disabled:opacity-60"
+          className="fixed bottom-[90px] right-6 bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 rounded-full text-white shadow-lg disabled:opacity-60 z-50"
         >
           {improving ? "Improving..." : "✨ Smart Improve"}
         </button>
       )}
 
-      {/* BOTTOM INPUT BAR */}
-      <div className="fixed bottom-0 left-0 right-0 bg-neutral-950 border-t border-neutral-800">
+      {/* FIXED CHAT BAR — FINAL VERSION */}
+      <div className="fixed bottom-[70px] left-0 right-0 bg-neutral-950 border-t border-neutral-800 z-50">
         <div className="w-full max-w-2xl mx-auto px-4 py-3 space-y-2">
 
           {file && filePreviewUrl && (
@@ -481,6 +474,7 @@ ${note.content}
               {loading ? "Sending..." : "Send"}
             </button>
           </form>
+
         </div>
       </div>
     </main>
