@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { motion } from "framer-motion";
 
+/* ---------------------------------- TYPES ---------------------------------- */
+
 interface Note {
   id: number;
   title: string;
@@ -11,7 +13,7 @@ interface Note {
   favorite: boolean;
   done: boolean;
   updated: number;
-  folderId?: string; // basic folder support
+  folderId?: string;
 }
 
 interface Folder {
@@ -24,25 +26,24 @@ interface Folder {
 const STORAGE_KEY_V2 = "vr_notepad_v2";
 const LEGACY_STORAGE_KEY = "vr_notepad";
 
-// system / virtual folders (not stored in folders[])
 type SystemFolderId = "all" | "favorites" | "pinned" | "done" | "inbox";
-
 type AiMode = "free" | "improve" | "summarize" | "tasks" | "rewrite";
+
+/* -------------------------------- MAIN PAGE -------------------------------- */
 
 export default function NotepadPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [activeFolderId, setActiveFolderId] = useState<SystemFolderId | string>(
-    "all"
-  );
+  const [activeFolderId, setActiveFolderId] =
+    useState<SystemFolderId | string>("all");
 
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"updated-desc" | "updated-asc" | "title">(
-    "updated-desc"
-  );
+  const [sort, setSort] =
+    useState<"updated-desc" | "updated-asc" | "title">("updated-desc");
   const [activeNote, setActiveNote] = useState<number | null>(null);
 
-  // --- AI dock state ---
+  /* ------------------------------ AI STATES ------------------------------ */
+
   const [aiInput, setAiInput] = useState("");
   const [aiMode, setAiMode] = useState<AiMode>("free");
   const [aiLoading, setAiLoading] = useState(false);
@@ -50,32 +51,23 @@ export default function NotepadPage() {
   const [aiFilePreviewUrl, setAiFilePreviewUrl] = useState<string | null>(null);
   const aiInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ---- LOAD FROM LOCALSTORAGE (v2 + legacy) ----
+  /* -------------------------- LOAD LOCALSTORAGE -------------------------- */
+
   useEffect(() => {
     try {
       const storedV2 = localStorage.getItem(STORAGE_KEY_V2);
-
       if (storedV2) {
-        const parsed = JSON.parse(storedV2) as {
-          notes: Note[];
-          folders: Folder[];
-        };
-
+        const parsed = JSON.parse(storedV2);
         setNotes(parsed.notes || []);
         setFolders(
-          parsed.folders && parsed.folders.length > 0
-            ? parsed.folders
-            : getDefaultFolders()
+          parsed.folders?.length ? parsed.folders : getDefaultFolders()
         );
         return;
       }
 
-      // legacy support: plain notes array
       const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
       if (legacy) {
-        const parsedLegacy = JSON.parse(legacy) as Note[];
-        // assign all legacy notes to inbox
-        const migrated = parsedLegacy.map((n) => ({
+        const migrated = JSON.parse(legacy).map((n: any) => ({
           ...n,
           folderId: n.folderId ?? "inbox",
         }));
@@ -91,13 +83,17 @@ export default function NotepadPage() {
     }
   }, []);
 
-  // ---- SAVE TO LOCALSTORAGE (v2) ----
+  /* --------------------------- SAVE LOCALSTORAGE -------------------------- */
+
   useEffect(() => {
-    const payload = JSON.stringify({ notes, folders });
-    localStorage.setItem(STORAGE_KEY_V2, payload);
+    localStorage.setItem(
+      STORAGE_KEY_V2,
+      JSON.stringify({ notes, folders })
+    );
   }, [notes, folders]);
 
-  // ---- FILE PREVIEW FOR AI DOCK ----
+  /* ---------------------------- FILE PREVIEW ----------------------------- */
+
   useEffect(() => {
     if (!aiFile) {
       setAiFilePreviewUrl(null);
@@ -108,38 +104,15 @@ export default function NotepadPage() {
     return () => URL.revokeObjectURL(url);
   }, [aiFile]);
 
+  /* ----------------------------- FOLDER LIST ----------------------------- */
+
   function getDefaultFolders(): Folder[] {
     return [
-      {
-        id: "inbox",
-        name: "Inbox",
-        emoji: "📥",
-        builtIn: true,
-      },
-      {
-        id: "work",
-        name: "Work",
-        emoji: "💼",
-        builtIn: true,
-      },
-      {
-        id: "ideas",
-        name: "Ideas",
-        emoji: "🧠",
-        builtIn: true,
-      },
-      {
-        id: "personal",
-        name: "Personal",
-        emoji: "🌙",
-        builtIn: true,
-      },
-      {
-        id: "archive",
-        name: "Archive",
-        emoji: "🗂️",
-        builtIn: true,
-      },
+      { id: "inbox", name: "Inbox", emoji: "📥", builtIn: true },
+      { id: "work", name: "Work", emoji: "💼", builtIn: true },
+      { id: "ideas", name: "Ideas", emoji: "🧠", builtIn: true },
+      { id: "personal", name: "Personal", emoji: "🌙", builtIn: true },
+      { id: "archive", name: "Archive", emoji: "🗂️", builtIn: true },
     ];
   }
 
@@ -148,22 +121,20 @@ export default function NotepadPage() {
     if (activeFolderId === "favorites") return "Favorites";
     if (activeFolderId === "pinned") return "Pinned";
     if (activeFolderId === "done") return "Done";
-    const folder = folders.find((f) => f.id === activeFolderId);
-    return folder ? folder.name : "Notes";
+    return folders.find((f) => f.id === activeFolderId)?.name || "Notes";
   }
 
-  // ---- CRUD ----
+  /* ----------------------------- CRUD LOGIC ------------------------------ */
+
   function addNote() {
     const id = Date.now();
-
-    // choose folder for new note
-    const baseFolderId: string =
+    const folder =
       activeFolderId === "all" ||
       activeFolderId === "favorites" ||
       activeFolderId === "pinned" ||
       activeFolderId === "done"
         ? "inbox"
-        : (activeFolderId as string);
+        : activeFolderId;
 
     const newNote: Note = {
       id,
@@ -173,7 +144,7 @@ export default function NotepadPage() {
       favorite: false,
       done: false,
       updated: Date.now(),
-      folderId: baseFolderId,
+      folderId: folder,
     };
 
     setNotes((prev) => [newNote, ...prev]);
@@ -182,9 +153,7 @@ export default function NotepadPage() {
 
   function updateNote(id: number, fields: Partial<Note>) {
     setNotes((prev) =>
-      prev.map((n) =>
-        n.id === id ? { ...n, ...fields, updated: Date.now() } : n
-      )
+      prev.map((n) => (n.id === id ? { ...n, ...fields, updated: Date.now() } : n))
     );
   }
 
@@ -194,36 +163,29 @@ export default function NotepadPage() {
   }
 
   function addFolder() {
-    const name = window.prompt(
-      "Folder name (you can start with an emoji, e.g. 🔬 Lab)"
-    );
+    const name = window.prompt("Folder name:");
     if (!name) return;
 
-    // very simple emoji guess (first char)
     const trimmed = name.trim();
-    const firstChar = trimmed[0];
-    const hasEmojiPrefix = /\p{Extended_Pictographic}/u.test(firstChar);
+    const first = trimmed[0];
+    const isEmoji = /\p{Extended_Pictographic}/u.test(first);
 
     const folder: Folder = {
       id: `folder_${Date.now()}`,
-      name: hasEmojiPrefix ? trimmed.slice(1).trim() || "Folder" : trimmed,
-      emoji: hasEmojiPrefix ? firstChar : "📁",
+      name: isEmoji ? trimmed.slice(1).trim() : trimmed,
+      emoji: isEmoji ? first : "📁",
     };
 
     setFolders((prev) => [...prev, folder]);
     setActiveFolderId(folder.id);
   }
 
-  function moveNoteToFolder(noteId: number, folderId: string) {
-    updateNote(noteId, { folderId });
-  }
+  /* ----------------------------- FILTER & SORT --------------------------- */
 
-  // ---- FILTER + SORT ----
   const normalizedSearch = search.trim().toLowerCase();
 
   const visibleNotes = notes
     .filter((n) => {
-      // folder filter
       if (activeFolderId === "favorites" && !n.favorite) return false;
       if (activeFolderId === "pinned" && !n.pinned) return false;
       if (activeFolderId === "done" && !n.done) return false;
@@ -234,19 +196,16 @@ export default function NotepadPage() {
         activeFolderId !== "pinned" &&
         activeFolderId !== "done"
       ) {
-        const folderId = n.folderId || "inbox";
-        if (folderId !== activeFolderId) return false;
+        if ((n.folderId || "inbox") !== activeFolderId) return false;
       }
 
       if (!normalizedSearch) return true;
-      return `${n.title} ${n.content}`.toLowerCase().includes(normalizedSearch);
+      return `${n.title} ${n.content}`
+        .toLowerCase()
+        .includes(normalizedSearch);
     })
     .sort((a, b) => {
-      // pinned always on top
-      if (a.pinned !== b.pinned) {
-        return a.pinned ? -1 : 1;
-      }
-
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
       if (sort === "updated-desc") return b.updated - a.updated;
       if (sort === "updated-asc") return a.updated - b.updated;
       if (sort === "title") return a.title.localeCompare(b.title);
@@ -255,22 +214,20 @@ export default function NotepadPage() {
 
   const active = notes.find((n) => n.id === activeNote) || null;
 
-  // ---- AI DOCK LOGIC ----
+  /* ------------------------------ AI ACTIONS ----------------------------- */
 
   function setModeAndFocus(mode: AiMode) {
     setAiMode(mode);
-    // gently hint in the placeholder by setting a template prompt if input is empty
     if (!aiInput.trim()) {
       if (mode === "improve")
         setAiInput("Polish this note, keep my voice but make it tighter.");
       if (mode === "summarize")
-        setAiInput("Summarize this note into 3–5 bullet points.");
+        setAiInput("Summarize this into short bullet points.");
       if (mode === "tasks")
         setAiInput("Extract clear action items with checkboxes.");
       if (mode === "rewrite")
-        setAiInput("Rewrite this in a more professional, concise tone.");
+        setAiInput("Rewrite this in a clearer, cleaner tone.");
     }
-    // focus the input
     setTimeout(() => aiInputRef.current?.focus(), 10);
   }
 
@@ -279,137 +236,119 @@ export default function NotepadPage() {
     if (aiLoading) return;
 
     const trimmed = aiInput.trim();
-    if (!active && !trimmed && !aiFile) {
-      return; // nothing to do
-    }
+    if (!active && !trimmed && !aiFile) return;
 
     setAiLoading(true);
 
-    const baseNoteText = active
-      ? `Current note title:\n${active.title || "(untitled)"}\n\nCurrent note content:\n${active.content || "(empty)"}`
-      : "(no active note selected)";
+    const userNoteText = active
+      ? `Title:\n${active.title}\n\nContent:\n${active.content}`
+      : "(no current note)";
 
     const modeInstruction =
       aiMode === "improve"
-        ? "Improve and rewrite this note. Keep key ideas, tighten the writing, keep it human, no unnecessary fluff."
+        ? "Improve clarity but preserve meaning."
         : aiMode === "summarize"
-        ? "Summarize this note into concise bullet points. Keep it scannable and useful."
+        ? "Summarize into clean bullet points:"
         : aiMode === "tasks"
-        ? "Extract a clear list of tasks / todos from this note. Use bullet points, optionally with checkboxes."
+        ? "Extract actionable tasks in bullet format."
         : aiMode === "rewrite"
-        ? "Rewrite this note in a clearer, more professional tone while preserving meaning."
-        : "Use the user request to help with this note however is most useful.";
-
-    const userRequest = trimmed || "(no extra instructions from user).";
+        ? "Rewrite more cleanly, preserving meaning."
+        : "Help however is most appropriate.";
 
     const prompt = `
-You are the AI workspace for VisuaRealm Notepad.
+You are the AI assistant of the VisuaRealm Notepad.
 
-Mode: ${aiMode.toUpperCase()}
+Mode: ${aiMode}
+Instruction: ${modeInstruction}
 
-Guidelines:
-- Always respond with just the content that should go back into the note (no meta commentary).
-- Preserve important details, structure, and any numbered lists.
-- Do NOT add disclaimers or 'as an AI' language.
+User request:
+${trimmed}
 
-Mode Instruction:
-${modeInstruction}
+Current note context:
+${userNoteText}
 
-User extra request:
-${userRequest}
-
-Note context:
-${baseNoteText}
+Return ONLY the content that goes back into the note. No explanations.
 `.trim();
 
     try {
-      const messagesPayload = [{ role: "user", content: prompt }];
-
       let reply = "";
 
       if (aiFile) {
-        // mirror the chat page style: multipart when file is present
-        const formData = new FormData();
-        formData.append("messages", JSON.stringify(messagesPayload));
-        formData.append("file", aiFile);
+        const form = new FormData();
+        form.append("messages", JSON.stringify([{ role: "user", content: prompt }]));
+        form.append("file", aiFile);
 
-        const res = await fetch("/api/chat", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        reply = data.reply || "";
+        const r = await fetch("/api/chat", { method: "POST", body: form });
+        reply = (await r.json()).reply;
       } else {
-        const res = await fetch("/api/chat", {
+        const r = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: messagesPayload }),
+          body: JSON.stringify({ messages: [{ role: "user", content: prompt }] }),
         });
-        const data = await res.json();
-        reply = data.reply || "";
+        reply = (await r.json()).reply;
       }
 
       if (!reply) return;
 
       if (active) {
-        // apply different merge behavior by mode
-        if (aiMode === "improve" || aiMode === "rewrite") {
-          updateNote(active.id, { content: reply });
-        } else if (aiMode === "summarize") {
+        if (aiMode === "summarize") {
           updateNote(active.id, {
-            content:
-              active.content +
-              "\n\n---\n\nAI Summary:\n" +
-              reply.trim(),
+            content: active.content + "\n\n---\nSummary:\n" + reply.trim(),
           });
         } else if (aiMode === "tasks") {
           updateNote(active.id, {
-            content:
-              active.content +
-              "\n\n---\n\nAI Tasks:\n" +
-              reply.trim(),
+            content: active.content + "\n\n---\nTasks:\n" + reply.trim(),
+          });
+        } else if (aiMode === "free") {
+          updateNote(active.id, {
+            content: active.content + "\n\n---\nAI Output:\n" + reply.trim(),
           });
         } else {
-          // free: just append below
-          updateNote(active.id, {
-            content:
-              active.content +
-              "\n\n---\n\nAI Output:\n" +
-              reply.trim(),
-          });
+          updateNote(active.id, { content: reply.trim() });
         }
       } else {
-        // if no active note, create a new one out of the reply
         const id = Date.now();
-        const newNote: Note = {
-          id,
-          title: "AI Note",
-          content: reply.trim(),
-          pinned: false,
-          favorite: false,
-          done: false,
-          updated: Date.now(),
-          folderId: "inbox",
-        };
-        setNotes((prev) => [newNote, ...prev]);
+        setNotes((prev) => [
+          {
+            id,
+            title: "AI Note",
+            content: reply.trim(),
+            pinned: false,
+            favorite: false,
+            done: false,
+            updated: Date.now(),
+            folderId: "inbox",
+          },
+          ...prev,
+        ]);
         setActiveNote(id);
       }
-    } catch (err) {
-      console.error(err);
-      // optional: toast or alert could be wired later
     } finally {
       setAiLoading(false);
-      // keep note, but clear transient stuff
       setAiInput("");
       setAiFile(null);
     }
   }
 
+  /* --------------------------------- RENDER -------------------------------- */
+
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black text-gray-100 px-4 py-4 pb-28">
+    <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black px-4 py-4 pb-28 text-gray-100">
+
+      {/* ------------------------- TOP NAV BUTTONS ------------------------- */}
+      <div className="mx-auto mb-4 flex max-w-5xl justify-center gap-4">
+        <TopNavButton href="/" label="Main Chat" emoji="💬" />
+        <TopNavButton href="/whiteboard" label="Whiteboard" emoji="📝" />
+        <TopNavButton href="/notepad" label="Notepad" emoji="📓" active />
+        <TopNavButton href="/image" label="Image Gen" emoji="🎨" />
+      </div>
+
       <div className="mx-auto flex max-w-5xl gap-4">
-        {/* SIDEBAR — FOLDER TREE */}
+
+        {/* ----------------------------- SIDEBAR ----------------------------- */}
         <aside className="hidden w-60 shrink-0 flex-col rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3 shadow-[0_0_30px_rgba(15,23,42,0.9)] md:flex">
+
           <header className="mb-2 flex items-center justify-between">
             <div>
               <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
@@ -427,7 +366,7 @@ ${baseNoteText}
 
           <div className="mb-2 h-px w-full bg-gradient-to-r from-transparent via-neutral-700 to-transparent" />
 
-          {/* Quick Views */}
+          {/* Quick Folders */}
           <nav className="mb-3 space-y-1 text-sm">
             <SidebarItem
               label="All Notes"
@@ -466,7 +405,7 @@ ${baseNoteText}
                 label={folder.name}
                 emoji={folder.emoji}
                 active={activeFolderId === folder.id}
-                onClick={() => setActiveFolderId(folder.id as string)}
+                onClick={() => setActiveFolderId(folder.id)}
               />
             ))}
           </div>
@@ -480,10 +419,11 @@ ${baseNoteText}
           </button>
         </aside>
 
-        {/* MAIN COLUMN */}
+        {/* ----------------------------- MAIN PANEL ----------------------------- */}
+
         <section className="flex-1 space-y-3">
-          {/* TOP BAR (Title) */}
-          <div className="flex items-center justify-between gap-2 md:justify-between">
+
+          <div className="flex items-center justify-between gap-2">
             <div>
               <h1 className="text-lg font-semibold tracking-wide">
                 {currentFolderLabel()}
@@ -503,7 +443,7 @@ ${baseNoteText}
             </div>
           </div>
 
-          {/* Mobile folder strip */}
+          {/* mobile folder pills */}
           <div className="flex gap-2 overflow-x-auto pb-1 text-[11px] md:hidden">
             <Chip
               label="All"
@@ -529,6 +469,7 @@ ${baseNoteText}
               active={activeFolderId === "done"}
               onClick={() => setActiveFolderId("done")}
             />
+
             {folders.map((folder) => (
               <Chip
                 key={folder.id}
@@ -540,14 +481,15 @@ ${baseNoteText}
             ))}
           </div>
 
-          {/* Search + Sort */}
+          {/* search + sort */}
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search notes by title or content..."
+              placeholder="Search notes..."
               className="w-full flex-1 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-500 focus:border-blue-500"
             />
+
             <select
               value={sort}
               onChange={(e) =>
@@ -559,13 +501,13 @@ ${baseNoteText}
             >
               <option value="updated-desc">Recently Edited</option>
               <option value="updated-asc">Oldest Edited</option>
-              <option value="title">Title (A → Z)</option>
+              <option value="title">Title (A→Z)</option>
             </select>
           </div>
 
-          {/* LAYOUT: LIST + EDITOR */}
+          {/* ------------- list + editor ------------- */}
+
           <div className="flex flex-col gap-3 md:flex-row">
-            {/* Notes List */}
             <div className="space-y-2 md:w-[45%]">
               <button
                 onClick={addNote}
@@ -577,8 +519,6 @@ ${baseNoteText}
               {visibleNotes.length === 0 && (
                 <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/80 px-4 py-5 text-center text-xs text-gray-400">
                   No notes here yet.
-                  <br />
-                  Start with a quick idea, task list, or brain dump.
                 </div>
               )}
 
@@ -596,10 +536,11 @@ ${baseNoteText}
                         : "border-neutral-800 bg-neutral-950/80 hover:border-neutral-600"
                     }`}
                   >
-                    <div className="mb-1 flex items-center justify-between gap-2">
+                    <div className="mb-1 flex items-center justify-between">
                       <h3 className="truncate text-[13px] font-semibold">
                         {note.title || "Untitled"}
                       </h3>
+
                       <div className="flex items-center gap-1 text-[13px]">
                         {note.pinned && <span>📌</span>}
                         {note.favorite && <span>⭐</span>}
@@ -618,10 +559,9 @@ ${baseNoteText}
                           minute: "2-digit",
                         })}
                       </span>
-                      <span className="opacity-70">
-                        {folders.find(
-                          (f) => f.id === (note.folderId || "inbox")
-                        )?.emoji || "📁"}
+                      <span>
+                        {folders.find((f) => f.id === note.folderId)?.emoji ||
+                          "📁"}
                       </span>
                     </div>
                   </motion.div>
@@ -629,17 +569,15 @@ ${baseNoteText}
               </div>
             </div>
 
-            {/* Editor */}
+            {/* EDITOR */}
             <div className="md:w-[55%]">
-              {!active && (
+              {!active ? (
                 <div className="mt-3 flex h-full min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/70 px-4 py-6 text-center text-xs text-gray-400">
-                  Select a note on the left, or create a new one to start
-                  writing.
+                  Select a note or create a new one.
                 </div>
-              )}
-
-              {active && (
+              ) : (
                 <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-3 shadow-[0_0_25px_rgba(15,23,42,0.95)]">
+
                   <div className="flex items-center justify-between gap-2">
                     <input
                       value={active.title}
@@ -653,13 +591,13 @@ ${baseNoteText}
                     <select
                       value={active.folderId || "inbox"}
                       onChange={(e) =>
-                        moveNoteToFolder(active.id, e.target.value)
+                        updateNote(active.id, { folderId: e.target.value })
                       }
                       className="w-28 rounded-full border border-neutral-700 bg-neutral-900 px-2 py-1 text-[10px] text-gray-100 outline-none focus:border-blue-500"
                     >
-                      {folders.map((folder) => (
-                        <option key={folder.id} value={folder.id}>
-                          {folder.emoji} {folder.name}
+                      {folders.map((f) => (
+                        <option key={f.id} value={f.id}>
+                          {f.emoji} {f.name}
                         </option>
                       ))}
                     </select>
@@ -672,33 +610,34 @@ ${baseNoteText}
                     }
                     rows={10}
                     className="w-full resize-none bg-transparent text-xs leading-relaxed text-gray-100 outline-none placeholder:text-gray-500"
-                    placeholder="Write freely. Ideas, tasks, drafts, lyrics, plans..."
+                    placeholder="Write freely..."
                   />
 
-                  {/* Toggles */}
                   <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
                     <ToggleButton
                       active={active.pinned}
                       onClick={() =>
                         updateNote(active.id, { pinned: !active.pinned })
                       }
-                      label={active.pinned ? "Unpin" : "Pin to top"}
+                      label={active.pinned ? "Unpin" : "Pin"}
                       emoji="📌"
                     />
+
                     <ToggleButton
                       active={active.favorite}
                       onClick={() =>
                         updateNote(active.id, { favorite: !active.favorite })
                       }
-                      label={active.favorite ? "Unfavorite" : "Mark favorite"}
+                      label={active.favorite ? "Unfavorite" : "Favorite"}
                       emoji="⭐"
                     />
+
                     <ToggleButton
                       active={active.done}
                       onClick={() =>
                         updateNote(active.id, { done: !active.done })
                       }
-                      label={active.done ? "Mark not done" : "Mark done"}
+                      label={active.done ? "Not done" : "Done"}
                       emoji="✅"
                     />
                   </div>
@@ -708,10 +647,11 @@ ${baseNoteText}
                       onClick={() => deleteNote(active.id)}
                       className="text-[11px] text-red-400 hover:text-red-300"
                     >
-                      🗑️ Delete note
+                      🗑️ Delete
                     </button>
+
                     <p className="text-[10px] text-gray-500">
-                      Last edited{" "}
+                      Last edit{" "}
                       {new Date(active.updated).toLocaleString([], {
                         month: "short",
                         day: "2-digit",
@@ -727,84 +667,66 @@ ${baseNoteText}
         </section>
       </div>
 
-      {/* FIXED AI DOCK — MATCH CHAT BOTTOM BAR */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-50 border-t border-neutral-700 
-                   bg-[#0d0d16]/90 backdrop-blur-xl 
-                   shadow-[0_-8px_30px_rgba(0,0,0,0.85)]"
-      >
+      {/* ---------------------------- AI DOCK ---------------------------- */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-neutral-700 bg-[#0d0d16]/90 backdrop-blur-xl shadow-[0_-8px_30px_rgba(0,0,0,0.85)]">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3">
-          {/* AI Modes Row */}
+
           <div className="flex flex-wrap gap-2 text-[11px]">
-            <button
+            <DockButton
+              active={aiMode === "free"}
               onClick={() => setModeAndFocus("free")}
-              className={`rounded-full border px-3 py-1 ${
-                aiMode === "free"
-                  ? "border-blue-500 bg-blue-600/20 text-blue-100"
-                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
-              }`}
-            >
-              🧠 Ask AI (free)
-            </button>
-            <button
+              color="blue"
+              emoji="🧠"
+              label="Ask AI"
+            />
+
+            <DockButton
+              active={aiMode === "improve"}
               onClick={() => setModeAndFocus("improve")}
-              className={`rounded-full border px-3 py-1 ${
-                aiMode === "improve"
-                  ? "border-emerald-500 bg-emerald-600/20 text-emerald-100"
-                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
-              }`}
-            >
-              ✨ Improve Note
-            </button>
-            <button
+              color="emerald"
+              emoji="✨"
+              label="Improve"
+            />
+
+            <DockButton
+              active={aiMode === "summarize"}
               onClick={() => setModeAndFocus("summarize")}
-              className={`rounded-full border px-3 py-1 ${
-                aiMode === "summarize"
-                  ? "border-cyan-500 bg-cyan-600/20 text-cyan-100"
-                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
-              }`}
-            >
-              🧾 Summarize
-            </button>
-            <button
+              color="cyan"
+              emoji="🧾"
+              label="Summarize"
+            />
+
+            <DockButton
+              active={aiMode === "tasks"}
               onClick={() => setModeAndFocus("tasks")}
-              className={`rounded-full border px-3 py-1 ${
-                aiMode === "tasks"
-                  ? "border-amber-500 bg-amber-500/20 text-amber-100"
-                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
-              }`}
-            >
-              ✅ Extract Tasks
-            </button>
-            <button
+              color="amber"
+              emoji="✅"
+              label="Tasks"
+            />
+
+            <DockButton
+              active={aiMode === "rewrite"}
               onClick={() => setModeAndFocus("rewrite")}
-              className={`rounded-full border px-3 py-1 ${
-                aiMode === "rewrite"
-                  ? "border-purple-500 bg-purple-600/20 text-purple-100"
-                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
-              }`}
-            >
-              🎨 Rewrite Style
-            </button>
+              color="purple"
+              emoji="🎨"
+              label="Rewrite"
+            />
           </div>
 
-          {/* File preview */}
           {aiFile && aiFilePreviewUrl && (
             <div className="flex items-center gap-3 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1">
-              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded border border-neutral-800 text-[11px] text-gray-300">
-                {/* just show generic preview; images will render as image */}
+              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded border border-neutral-800">
                 {aiFile.type.startsWith("image/") ? (
-                  <img
-                    src={aiFilePreviewUrl}
-                    className="h-full w-full object-cover"
-                  />
+                  <img src={aiFilePreviewUrl} className="h-full w-full object-cover" />
                 ) : (
-                  <span>📎</span>
+                  <span className="text-[11px] text-gray-300">📎</span>
                 )}
               </div>
+
               <span className="flex-1 truncate text-xs text-gray-200">
                 {aiFile.name}
               </span>
+
               <button
                 className="text-xs text-red-400"
                 onClick={() => setAiFile(null)}
@@ -814,11 +736,7 @@ ${baseNoteText}
             </div>
           )}
 
-          {/* Input row */}
-          <form
-            onSubmit={handleAiSubmit}
-            className="flex items-center gap-2 text-xs"
-          >
+          <form onSubmit={handleAiSubmit} className="flex items-center gap-2 text-xs">
             <input
               type="file"
               onChange={(e) => setAiFile(e.target.files?.[0] || null)}
@@ -832,8 +750,8 @@ ${baseNoteText}
               className="flex-1 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-500 focus:border-blue-500"
               placeholder={
                 active
-                  ? "Ask AI to clean this note, summarize it, extract tasks, or anything..."
-                  : "No note selected — ask AI to draft something new..."
+                  ? "Ask AI to improve, summarize, rewrite, or modify this note..."
+                  : "No note selected — ask AI to generate one..."
               }
             />
 
@@ -850,7 +768,68 @@ ${baseNoteText}
   );
 }
 
-/* -------- Small UI Pieces -------- */
+/* ------------------------------ COMPONENTS ------------------------------ */
+
+function TopNavButton({
+  href,
+  label,
+  emoji,
+  active,
+}: {
+  href: string;
+  label: string;
+  emoji: string;
+  active?: boolean;
+}) {
+  return (
+    <a
+      href={href}
+      className={`rounded-xl px-4 py-2 text-sm flex items-center gap-2 transition ${
+        active
+          ? "border border-blue-500/70 bg-blue-600/20 text-blue-200 shadow-[0_0_14px_rgba(37,99,235,0.4)]"
+          : "border border-neutral-700 bg-neutral-900/80 text-gray-300 hover:border-blue-500 hover:text-blue-200"
+      }`}
+    >
+      <span>{emoji}</span>
+      <span>{label}</span>
+    </a>
+  );
+}
+
+function DockButton({
+  active,
+  onClick,
+  color,
+  emoji,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  color: string;
+  emoji: string;
+  label: string;
+}) {
+  const activeStyles = {
+    blue: "border-blue-500 bg-blue-600/20 text-blue-100",
+    emerald: "border-emerald-500 bg-emerald-600/20 text-emerald-100",
+    cyan: "border-cyan-500 bg-cyan-600/20 text-cyan-100",
+    amber: "border-amber-500 bg-amber-500/20 text-amber-100",
+    purple: "border-purple-500 bg-purple-600/20 text-purple-100",
+  }[color];
+
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1 ${
+        active
+          ? activeStyles
+          : "border-neutral-700 bg-neutral-900/80 text-gray-300"
+      }`}
+    >
+      {emoji} {label}
+    </button>
+  );
+}
 
 function SidebarItem({
   label,
