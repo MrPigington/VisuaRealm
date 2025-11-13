@@ -36,7 +36,7 @@ export default function ChatPage() {
   const [showNotes, setShowNotes] = useState(true);
   const [improving, setImproving] = useState(false);
 
-  // 🔐 check user
+  // 🔐 Check authenticated user (Supabase)
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -45,7 +45,7 @@ export default function ChatPage() {
     checkUser();
   }, []);
 
-  // 🔄 auto-scroll
+  // 🔄 Auto-scroll chat to bottom on new messages
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -72,32 +72,62 @@ export default function ChatPage() {
     setActiveNote(newNote.id);
   }
 
-  // 🧠 Parse response
+  function deleteNote(id: number) {
+    const remaining = notes.filter((n) => n.id !== id);
+
+    if (remaining.length === 0) {
+      const newNote: Note = {
+        id: Date.now(),
+        title: "New Note",
+        content: "",
+        editing: true,
+      };
+      setNotes([newNote]);
+      setActiveNote(newNote.id);
+      return;
+    }
+
+    setNotes(remaining);
+    if (activeNote === id) {
+      setActiveNote(remaining[0].id);
+    }
+  }
+
+  // 🧠 Parse response into main + recap + URLs
   function splitResponse(content: string) {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
+
+    // If it's clearly code / JSON, just return raw
     if (normalized.includes("```") || normalized.includes("{"))
       return { main: normalized, recap: null, urls: [] };
+
     const recapRegex = /(📘 Quick Recap[:\s\S]*?)(?=$|\n{2,}|$)/i;
     const recapMatch = normalized.match(recapRegex);
     const recap = recapMatch ? recapMatch[0].trim() : null;
+
     const withoutRecap = recap
       ? normalized.replace(recap, "").trim()
       : normalized;
+
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
     const urls = [...withoutRecap.matchAll(urlRegex)].map((m) => m[0]);
+
     const main = withoutRecap.replace(urlRegex, "").trim();
     return { main, recap, urls };
   }
 
-  // 💬 chat send
+  // 💬 Send chat message
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
+    if (loading) return; // prevent double-send
     if (!input.trim() && !file) return;
+
     const userMessage: Message = {
       role: "user",
       content: input,
       fileUrl: file ? URL.createObjectURL(file) : undefined,
     };
+
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setLoading(true);
@@ -110,13 +140,20 @@ export default function ChatPage() {
       const res = await fetch("/api/chat", { method: "POST", body: formData });
       const data = await res.json();
       const reply = data.reply || "";
+
       const { main, recap, urls } = splitResponse(reply);
-      if (main) setMessages((p) => [...p, { role: "assistant", content: main }]);
-      if (recap)
+
+      if (main) {
+        setMessages((p) => [...p, { role: "assistant", content: main }]);
+      }
+
+      if (recap) {
         setMessages((p) => [
           ...p,
           { role: "assistant", content: recap, type: "recap" },
         ]);
+      }
+
       if (urls.length > 0) {
         const linksText =
           "🔗 Resource Links:\n" +
@@ -142,16 +179,21 @@ export default function ChatPage() {
   async function handleSmartImprove() {
     const note = notes.find((n) => n.id === activeNote);
     if (!note || !note.content.trim()) return alert("Note is empty.");
+
     setImproving(true);
 
-    const recentChat = messages.slice(-5).map((m) => `${m.role}: ${m.content}`).join("\n");
+    const recentChat = messages
+      .slice(-5)
+      .map((m) => `${m.role}: ${m.content}`)
+      .join("\n");
+
     const contextPrompt = `
 Based on this recent chat context:
-${recentChat}
+${recentChat || "(no prior chat context provided)"}
 
 Improve or expand this note intelligently, keeping style and context:
 ${note.content}
-`;
+`.trim();
 
     try {
       const res = await fetch("/api/chat", {
@@ -161,8 +203,10 @@ ${note.content}
           messages: [{ role: "user", content: contextPrompt }],
         }),
       });
+
       const data = await res.json();
       const reply = data.reply || "No response.";
+
       setNotes((prev) =>
         prev.map((n) => (n.id === activeNote ? { ...n, content: reply } : n))
       );
@@ -200,12 +244,17 @@ ${note.content}
             {showNotes ? "Hide Notes" : "Show Notes"}
           </button>
           {user ? (
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded-md"
-            >
-              Log Out
-            </button>
+            <>
+              <span className="text-xs text-gray-400 hidden sm:inline">
+                Signed in as <span className="font-medium">{user.email}</span>
+              </span>
+              <button
+                onClick={handleLogout}
+                className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded-md"
+              >
+                Log Out
+              </button>
+            </>
           ) : (
             <button
               onClick={() => (window.location.href = "/login")}
@@ -221,7 +270,12 @@ ${note.content}
       {showNotes && (
         <section className="bg-neutral-900 border-b border-neutral-800 p-4 max-h-[35vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="font-semibold text-gray-300">Notes</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold text-gray-300">Notes</h2>
+              <span className="text-xs text-gray-500">
+                ({notes.length} {notes.length === 1 ? "note" : "notes"})
+              </span>
+            </div>
             <button
               onClick={addNote}
               className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 text-sm rounded"
@@ -229,33 +283,47 @@ ${note.content}
               + Add
             </button>
           </div>
+
           <div className="space-y-2">
             {notes.map((note) => (
               <div
                 key={note.id}
-                className={`p-3 rounded-md cursor-pointer ${
+                className={`p-3 rounded-md relative ${
                   note.id === activeNote
                     ? "bg-neutral-800 border border-blue-500"
                     : "bg-neutral-800/50 hover:bg-neutral-700"
                 }`}
-                onClick={() => setActiveNote(note.id)}
               >
-                <input
-                  type="text"
-                  value={note.title}
-                  onChange={(e) =>
-                    handleNoteChange(note.id, "title", e.target.value)
-                  }
-                  className="w-full bg-transparent outline-none font-semibold mb-2"
-                />
-                <textarea
-                  value={note.content}
-                  onChange={(e) =>
-                    handleNoteChange(note.id, "content", e.target.value)
-                  }
-                  rows={3}
-                  className="w-full bg-transparent outline-none text-sm"
-                />
+                {/* ❌ Delete Note Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteNote(note.id);
+                  }}
+                  className="absolute top-2 right-2 text-red-400 hover:text-red-500 text-xs"
+                >
+                  ✕
+                </button>
+
+                {/* Click container to activate note */}
+                <div onClick={() => setActiveNote(note.id)}>
+                  <input
+                    type="text"
+                    value={note.title}
+                    onChange={(e) =>
+                      handleNoteChange(note.id, "title", e.target.value)
+                    }
+                    className="w-full bg-transparent outline-none font-semibold mb-2"
+                  />
+                  <textarea
+                    value={note.content}
+                    onChange={(e) =>
+                      handleNoteChange(note.id, "content", e.target.value)
+                    }
+                    rows={3}
+                    className="w-full bg-transparent outline-none text-sm"
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -327,7 +395,7 @@ ${note.content}
             disabled={loading}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-60"
           >
-            Send
+            {loading ? "Sending..." : "Send"}
           </button>
         </form>
       </section>
