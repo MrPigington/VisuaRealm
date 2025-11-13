@@ -1,12 +1,10 @@
 "use client";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0; // ✅ numeric zero also allowed, safest
-export const fetchCache = "force-no-store";
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+
+// 💡 no export const dynamic / revalidate here — client pages can’t use them
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,7 +13,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  // ✅ Redirect if logged in
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -24,7 +21,6 @@ export default function LoginPage() {
     checkUser();
   }, [router]);
 
-  // ✅ Sign In
   async function handleSignIn() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -33,7 +29,6 @@ export default function LoginPage() {
     else router.push("/chat");
   }
 
-  // ✅ Sign Up
   async function handleSignUp() {
     setLoading(true);
     const { error } = await supabase.auth.signUp({ email, password });
@@ -42,7 +37,6 @@ export default function LoginPage() {
     else alert("✅ Account created! Check your email for verification.");
   }
 
-  // ✅ UI
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-sm bg-white shadow-lg rounded-xl p-8">
