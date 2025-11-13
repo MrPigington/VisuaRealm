@@ -14,13 +14,6 @@ interface Message {
   fileUrl?: string;
 }
 
-interface Note {
-  id: number;
-  title: string;
-  content: string;
-  editing: boolean;
-}
-
 export default function ChatPage() {
   const [user, setUser] = useState<Record<string, any> | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -29,12 +22,6 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const [notes, setNotes] = useState<Note[]>([
-    { id: 1, title: "main.js", content: "", editing: false },
-  ]);
-  const [activeId, setActiveId] = useState(1);
-
-  // ✅ Just check if user exists, don't force redirect
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -43,7 +30,6 @@ export default function ChatPage() {
     checkUser();
   }, []);
 
-  // ✅ Auto scroll when new messages appear
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -140,7 +126,7 @@ export default function ChatPage() {
   };
 
   return (
-    <main className="flex flex-col min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative pb-[120px]">
+    <main className="flex flex-col min-h-screen bg-gradient-to-b from-[#050505] to-[#0d0d0d] text-gray-100 font-sans relative">
       {/* 🔝 Header */}
       <header className="flex justify-between items-center bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 sticky top-0 z-50">
         <h1 className="text-lg font-bold">💬 VisuaRealm Chat</h1>
@@ -161,8 +147,8 @@ export default function ChatPage() {
         )}
       </header>
 
-      {/* 💬 Chat Section */}
-      <section className="flex-1 flex flex-col items-center justify-between pb-[120px]">
+      {/* 💬 Chat Messages */}
+      <section className="flex-1 flex flex-col items-center justify-between overflow-hidden">
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6">
           {messages.map((msg, i) => (
             <motion.div
@@ -203,6 +189,32 @@ export default function ChatPage() {
           )}
           <div ref={chatEndRef} />
         </div>
+
+        {/* 💬 Chat Input */}
+        <form
+          onSubmit={sendMessage}
+          className="w-full max-w-2xl flex items-center gap-3 px-4 py-3 border-t border-neutral-800 bg-neutral-950/90"
+        >
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 bg-neutral-900 border border-neutral-800 text-white rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <input
+            type="file"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="text-sm text-gray-400"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-60"
+          >
+            {loading ? "..." : "Send"}
+          </button>
+        </form>
       </section>
     </main>
   );
