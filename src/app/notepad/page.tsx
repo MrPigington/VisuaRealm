@@ -210,15 +210,15 @@ export default function NotepadPage() {
   function getModeLabel(mode: AiMode) {
     switch (mode) {
       case "free":
-        return "Ask anything about this note or create content.";
+        return "Ask anything about this note or generate new content.";
       case "improve":
-        return "Improve clarity and flow, keep your voice.";
+        return "Polish this note: clearer, smoother, same voice.";
       case "summarize":
-        return "Summarize the note into clean bullets.";
+        return "Turn this note into clean, short bullet points.";
       case "tasks":
-        return "Extract action items with checkboxes.";
+        return "Pull out action items as a task list.";
       case "rewrite":
-        return "Rewrite more cleanly, preserving meaning.";
+        return "Rewrite this note more clearly, same meaning.";
       default:
         return "";
     }
@@ -332,7 +332,7 @@ Return ONLY the content that should be written into the note. No meta explanatio
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black px-4 py-4 pb-10 text-gray-100 flex flex-col">
-      {/* TOP NAV BUTTONS */}
+      {/* ------------------------- TOP NAV BUTTONS ------------------------- */}
       <div className="mx-auto mb-4 flex max-w-5xl justify-center gap-4">
         <TopNavButton href="/" label="Main Chat" emoji="💬" />
         <TopNavButton href="/chatlist" label="Chat List" emoji="📚" />
@@ -341,7 +341,7 @@ Return ONLY the content that should be written into the note. No meta explanatio
         <TopNavButton href="/image" label="Image Gen" emoji="🎨" />
       </div>
 
-      {/* CENTERED CARD LAYOUT */}
+      {/* ------------------------- CENTERED CARD LAYOUT ------------------------- */}
       <div className="flex-1 flex justify-center items-start">
         <div className="w-full max-w-5xl">
           {/* Mobile quick filters */}
@@ -585,8 +585,7 @@ Return ONLY the content that should be written into the note. No meta explanatio
                       Select a note or create a new one.
                     </div>
                   ) : (
-                    <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-4 shadow-[0_0_25px_rgba(15,23,42,0.95)]">
-                      {/* Title + Folder */}
+                    <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-3 shadow-[0_0_25px_rgba(15,23,42,0.95)]">
                       <div className="flex items-center justify-between gap-2">
                         <input
                           value={active.title}
@@ -616,14 +615,80 @@ Return ONLY the content that should be written into the note. No meta explanatio
                         </select>
                       </div>
 
-                      {/* AI MODE BAR INSIDE EDITOR */}
-                      <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 px-3 py-2 space-y-1">
-                        <div className="flex flex-wrap gap-1.5 text-[10px]">
+                      <textarea
+                        value={active.content}
+                        onChange={(e) =>
+                          updateNote(active.id, {
+                            content: e.target.value,
+                          })
+                        }
+                        rows={10}
+                        className="w-full resize-none bg-transparent text-xs leading-relaxed text-gray-100 outline-none placeholder:text-gray-500"
+                        placeholder="Write freely..."
+                      />
+
+                      <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
+                        <ToggleButton
+                          active={active.pinned}
+                          onClick={() =>
+                            updateNote(active.id, {
+                              pinned: !active.pinned,
+                            })
+                          }
+                          label={active.pinned ? "Unpin" : "Pin"}
+                          emoji="📌"
+                        />
+                        <ToggleButton
+                          active={active.favorite}
+                          onClick={() =>
+                            updateNote(active.id, {
+                              favorite: !active.favorite,
+                            })
+                          }
+                          label={
+                            active.favorite ? "Unfavorite" : "Favorite"
+                          }
+                          emoji="⭐"
+                        />
+                        <ToggleButton
+                          active={active.done}
+                          onClick={() =>
+                            updateNote(active.id, {
+                              done: !active.done,
+                            })
+                          }
+                          label={active.done ? "Not done" : "Done"}
+                          emoji="✅"
+                        />
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between">
+                        <button
+                          onClick={() => deleteNote(active.id)}
+                          className="text-[11px] text-red-400 hover:text-red-300"
+                        >
+                          🗑️ Delete
+                        </button>
+
+                        <p className="text-[10px] text-gray-500">
+                          Last edit{" "}
+                          {new Date(active.updated).toLocaleString([], {
+                            month: "short",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+
+                      {/* INLINE AI PANEL (NO BOTTOM DOCK) */}
+                      <div className="mt-3 space-y-2 rounded-2xl border border-neutral-800 bg-black/30 px-3 py-3">
+                        <div className="flex flex-wrap gap-2 text-[11px]">
                           <AiModeButton
                             mode="free"
                             current={aiMode}
                             emoji="🧠"
-                            label="Ask"
+                            label="Ask AI"
                             onClick={() => handleModeClick("free")}
                           />
                           <AiModeButton
@@ -637,7 +702,7 @@ Return ONLY the content that should be written into the note. No meta explanatio
                             mode="summarize"
                             current={aiMode}
                             emoji="🧾"
-                            label="Summary"
+                            label="Summarize"
                             onClick={() => handleModeClick("summarize")}
                           />
                           <AiModeButton
@@ -655,102 +720,33 @@ Return ONLY the content that should be written into the note. No meta explanatio
                             onClick={() => handleModeClick("rewrite")}
                           />
                         </div>
+
                         <p className="text-[10px] text-gray-400">
                           {getModeLabel(aiMode)}
                         </p>
-                      </div>
 
-                      {/* TEXTAREA */}
-                      <textarea
-                        value={active.content}
-                        onChange={(e) =>
-                          updateNote(active.id, {
-                            content: e.target.value,
-                          })
-                        }
-                        rows={10}
-                        className="w-full resize-none bg-transparent text-xs leading-relaxed text-gray-100 outline-none placeholder:text-gray-500"
-                        placeholder="Write freely..."
-                      />
-
-                      {/* AI INPUT INLINE */}
-                      <form
-                        onSubmit={handleAiSubmit}
-                        className="flex items-center gap-2 text-xs"
-                      >
-                        <input
-                          ref={aiInputRef}
-                          value={aiInput}
-                          onChange={(e) => setAiInput(e.target.value)}
-                          className="flex-1 rounded-full border border-neutral-600 bg-black/40 px-3 py-2 text-xs text-gray-50 outline-none placeholder:text-gray-400 focus:border-blue-400"
-                          placeholder={
-                            active
-                              ? "Optional: tell AI how to transform this note..."
-                              : "No active note — describe what you want AI to create..."
-                          }
-                        />
-                        <button
-                          disabled={aiLoading}
-                          className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+                        <form
+                          onSubmit={handleAiSubmit}
+                          className="flex items-center gap-2 text-xs"
                         >
-                          {aiLoading ? "Thinking..." : "Run AI"}
-                        </button>
-                      </form>
-
-                      {/* META + TOGGLES */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                        <div className="flex flex-wrap gap-2 text-[11px]">
-                          <ToggleButton
-                            active={active.pinned}
-                            onClick={() =>
-                              updateNote(active.id, {
-                                pinned: !active.pinned,
-                              })
+                          <input
+                            ref={aiInputRef}
+                            value={aiInput}
+                            onChange={(e) => setAiInput(e.target.value)}
+                            className="flex-1 rounded-full border border-neutral-500/40 bg-black/40 px-3 py-2 text-xs text-gray-50 outline-none placeholder:text-gray-400 focus:border-blue-400"
+                            placeholder={
+                              active
+                                ? "Optional: tell AI how to transform this note..."
+                                : "No active note — describe what you want AI to create..."
                             }
-                            label={active.pinned ? "Unpin" : "Pin"}
-                            emoji="📌"
                           />
-                          <ToggleButton
-                            active={active.favorite}
-                            onClick={() =>
-                              updateNote(active.id, {
-                                favorite: !active.favorite,
-                              })
-                            }
-                            label={
-                              active.favorite ? "Unfavorite" : "Favorite"
-                            }
-                            emoji="⭐"
-                          />
-                          <ToggleButton
-                            active={active.done}
-                            onClick={() =>
-                              updateNote(active.id, {
-                                done: !active.done,
-                              })
-                            }
-                            label={active.done ? "Not done" : "Done"}
-                            emoji="✅"
-                          />
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <p className="text-[10px] text-gray-500">
-                            Last edit{" "}
-                            {new Date(active.updated).toLocaleString([], {
-                              month: "short",
-                              day: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
                           <button
-                            onClick={() => deleteNote(active.id)}
-                            className="text-[11px] text-red-400 hover:text-red-300"
+                            disabled={aiLoading}
+                            className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
                           >
-                            🗑️ Delete
+                            {aiLoading ? "Thinking..." : "Run AI"}
                           </button>
-                        </div>
+                        </form>
                       </div>
                     </div>
                   )}
@@ -883,19 +879,18 @@ function AiModeButton({
   label: string;
   onClick: () => void;
 }) {
-  const isActive = mode === current;
+  const active = current === mode;
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-1 rounded-full border px-2.5 py-1 ${
-        isActive
-          ? "border-blue-400 bg-blue-500/20 text-blue-100"
-          : "border-neutral-600 bg-black/30 text-gray-200 hover:border-blue-400 hover:text-blue-100"
-      }`}
+      className={`rounded-full border px-3 py-1 ${
+        active
+          ? "border-blue-300 bg-blue-500/30 text-blue-50"
+          : "border-white/15 bg-black/20 text-gray-100"
+      } text-[11px]`}
     >
-      <span>{emoji}</span>
-      <span>{label}</span>
+      {emoji} {label}
     </button>
   );
 }
