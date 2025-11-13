@@ -308,204 +308,273 @@ ${note.content}
   };
 
   return (
-    <main className="flex flex-col min-h-screen bg-[#0d0d0d] text-gray-100">
+    <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#050510] via-[#050308] to-black text-gray-100">
       {/* Header */}
-      <header className="sticky top-0 bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 z-40">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowNotes((v) => !v)}
-            className="bg-neutral-800 px-3 py-1 rounded"
-          >
-            {showNotes ? "Hide Notes" : "Show Notes"}
-          </button>
-
-          {user ? (
-            <>
-              <span className="text-xs text-gray-400">
-                Signed in as <b>{user.email}</b>
+      <header className="sticky top-0 z-40 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            {/* Tiny VR orb logo */}
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-400 via-blue-500 to-purple-600 shadow-[0_0_18px_rgba(56,189,248,0.7)]">
+              <span className="text-xs font-bold tracking-[0.12em]">
+                VR
               </span>
-              <button
-                onClick={async () => {
-                  await supabase.auth.signOut();
-                  setUser(null);
-                }}
-                className="bg-red-500 px-3 py-1 rounded text-white"
-              >
-                Log Out
-              </button>
-            </>
-          ) : (
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold tracking-wide">
+                VisuaRealm Studio
+              </span>
+              <span className="text-[11px] text-gray-400">
+                Chat • Notes • Build Anything
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
             <button
-              onClick={() => (window.location.href = "/login")}
-              className="bg-blue-600 px-3 py-1 rounded text-white"
+              onClick={() => setShowNotes((v) => !v)}
+              className="rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1 text-xs text-gray-200 hover:border-blue-500 hover:text-white"
             >
-              Log In
+              {showNotes ? "Hide Notes" : "Show Notes"}
             </button>
-          )}
+
+            {user ? (
+              <>
+                <span className="hidden text-[11px] text-gray-400 sm:inline">
+                  Signed in as{" "}
+                  <b className="text-gray-200">{user.email}</b>
+                </span>
+                <button
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    setUser(null);
+                  }}
+                  className="rounded-full bg-red-500 px-3 py-1 text-xs font-medium text-white hover:bg-red-600"
+                >
+                  Log Out
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => (window.location.href = "/login")}
+                className="rounded-full bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-500"
+              >
+                Log In
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Notes Panel */}
+      {/* Top notes panel */}
       {showNotes && (
-        <section className="bg-neutral-900 border-b border-neutral-800 p-4 max-h-[35vh] overflow-y-auto">
-          <div className="flex justify-between mb-3">
-            <h2 className="font-semibold">Notes</h2>
-            <button
-              onClick={addNote}
-              className="bg-green-600 px-3 py-1 rounded text-sm"
-            >
-              + Add
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {notes.map((note) => (
-              <div
-                key={note.id}
-                onClick={() => setActiveNote(note.id)}
-                className={`p-3 rounded relative ${
-                  note.id === activeNote
-                    ? "bg-neutral-800 border border-blue-500"
-                    : "bg-neutral-800/50 hover:bg-neutral-700"
-                }`}
-              >
-                <button
-                  className="absolute top-2 right-2 text-red-400"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteNote(note.id);
-                  }}
-                >
-                  ✕
-                </button>
-
-                <input
-                  value={note.title}
-                  onChange={(e) =>
-                    setNotes((prev) =>
-                      prev.map((n) =>
-                        n.id === note.id ? { ...n, title: e.target.value } : n
-                      )
-                    )
-                  }
-                  className="w-full bg-transparent font-semibold mb-2 outline-none"
-                />
-
-                <textarea
-                  value={note.content}
-                  onChange={(e) =>
-                    setNotes((prev) =>
-                      prev.map((n) =>
-                        n.id === note.id
-                          ? { ...n, content: e.target.value }
-                          : n
-                      )
-                    )
-                  }
-                  rows={3}
-                  className="w-full bg-transparent outline-none text-sm"
-                />
+        <section className="border-b border-neutral-800 bg-neutral-950/90">
+          <div className="mx-auto max-w-5xl px-4 py-3">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold tracking-wide">
+                  Quick Notes
+                </h2>
+                <p className="text-[11px] text-gray-400">
+                  Capture ideas while you chat. Saved locally in this browser.
+                </p>
               </div>
-            ))}
+              <button
+                onClick={addNote}
+                className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500"
+              >
+                + Add Note
+              </button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              {notes.map((note) => (
+                <div
+                  key={note.id}
+                  onClick={() => setActiveNote(note.id)}
+                  className={`group relative cursor-pointer rounded-xl border p-3 transition ${
+                    note.id === activeNote
+                      ? "border-blue-500 bg-neutral-900/90 shadow-[0_0_18px_rgba(37,99,235,0.45)]"
+                      : "border-neutral-800 bg-neutral-900/70 hover:border-neutral-600 hover:bg-neutral-850"
+                  }`}
+                >
+                  <button
+                    className="absolute right-2 top-2 text-xs text-red-400 opacity-60 hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteNote(note.id);
+                    }}
+                  >
+                    ✕
+                  </button>
+
+                  <input
+                    value={note.title}
+                    onChange={(e) =>
+                      setNotes((prev) =>
+                        prev.map((n) =>
+                          n.id === note.id
+                            ? { ...n, title: e.target.value }
+                            : n
+                        )
+                      )
+                    }
+                    className="mb-1 w-full bg-transparent text-sm font-semibold outline-none placeholder:text-gray-500"
+                    placeholder="Note title"
+                  />
+
+                  <textarea
+                    value={note.content}
+                    onChange={(e) =>
+                      setNotes((prev) =>
+                        prev.map((n) =>
+                          n.id === note.id
+                            ? { ...n, content: e.target.value }
+                            : n
+                        )
+                      )
+                    }
+                    rows={3}
+                    className="w-full resize-none bg-transparent text-xs text-gray-200 outline-none placeholder:text-gray-500"
+                    placeholder="Type your note here..."
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}
 
-      {/* Chat */}
-      <section className="flex-1 flex flex-col items-center pb-[150px]">
-        <div
-          ref={scrollContainerRef}
-          className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6"
-        >
-          {messages.map((msg, i) => {
-            const isUser = msg.role === "user";
+      {/* Chat area */}
+      <section className="flex flex-1 justify-center pb-[150px]">
+        <div className="flex w-full max-w-5xl flex-col px-4 pt-4">
+          <div
+            ref={scrollContainerRef}
+            className="flex-1 space-y-5 overflow-y-auto rounded-2xl border border-neutral-800 bg-neutral-950/70 px-3 py-4 shadow-[0_0_40px_rgba(15,23,42,0.85)]"
+          >
+            {messages.length === 0 && (
+              <div className="mb-3 rounded-xl border border-dashed border-neutral-700 bg-neutral-900/70 px-4 py-4 text-xs text-gray-400">
+                <p className="mb-1 text-gray-200">
+                  Welcome to <span className="font-semibold">VisuaRealm</span>
+                </p>
+                <p>
+                  Ask for code, articles, marketing copy, UI ideas, app
+                  blueprints — anything. Your notes above stay tied to this
+                  workspace.
+                </p>
+              </div>
+            )}
 
-            return (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: i * 0.03 }}
-                className={`w-full flex ${
-                  isUser ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`max-w-[85%] p-4 rounded-2xl text-sm relative group shadow-md ${
-                    isUser
-                      ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                      : msg.type === "recap"
-                      ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white border border-blue-400"
-                      : "bg-neutral-900 text-gray-200 border border-neutral-800"
+            {messages.map((msg, i) => {
+              const isUser = msg.role === "user";
+
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className={`flex w-full ${
+                    isUser ? "justify-end" : "justify-start"
                   }`}
                 >
-                  {/* Tiny role label */}
-                  <p
-                    className={`mb-1 text-[10px] uppercase tracking-wider ${
-                      isUser ? "text-gray-200 text-right" : "text-blue-400"
+                  <div
+                    className={`relative flex max-w-[88%] gap-2 text-sm ${
+                      isUser ? "flex-row-reverse" : "flex-row"
                     }`}
                   >
-                    {isUser ? "You" : "VisuaRealm AI"}
-                  </p>
-
-                  {/* Copy button for assistant */}
-                  {!isUser && (
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(msg.content, i)}
-                      className="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full bg-neutral-800/80 border border-neutral-600 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      {copiedIndex === i ? "Copied" : "Copy"}
-                    </button>
-                  )}
-
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={markdownComponents}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-
-                  {msg.fileUrl && (
-                    <img
-                      src={msg.fileUrl}
-                      className="mt-2 max-w-full rounded border border-neutral-700"
-                    />
-                  )}
-
-                  {/* Assistant suggestion chips */}
-                  {!isUser && (
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {[
-                        "Explain this more",
-                        "Rewrite cleaner",
-                        "Give concrete examples",
-                        "Turn into code",
-                      ].map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() => handleSuggestionClick(suggestion)}
-                          className="bg-neutral-800/80 border border-neutral-700 text-[11px] px-2 py-1 rounded-full hover:bg-neutral-700 transition"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
+                    {/* Avatar */}
+                    <div className="mt-5 flex flex-col items-center gap-1">
+                      {isUser ? (
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full border border-neutral-700 bg-neutral-900 text-[11px] font-semibold text-gray-200">
+                          You
+                        </div>
+                      ) : (
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-400 via-blue-500 to-purple-600 text-[10px] font-bold shadow-[0_0_16px_rgba(56,189,248,0.6)]">
+                          VR
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* Timestamp */}
-                  <p className="text-[10px] text-gray-500 mt-3 text-right">
-                    {new Date().toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              </motion.div>
-            );
-          })}
-          <div ref={chatEndRef} />
+                    <div
+                      className={`group relative w-full rounded-2xl border px-4 py-3 shadow-md ${
+                        isUser
+                          ? "ml-auto border-purple-500/70 bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                          : msg.type === "recap"
+                          ? "border-blue-400/80 bg-gradient-to-r from-blue-600 to-cyan-500 text-white"
+                          : "border-neutral-800 bg-neutral-900 text-gray-200"
+                      }`}
+                    >
+                      {/* Tiny role label */}
+                      <p
+                        className={`mb-1 text-[10px] uppercase tracking-wider ${
+                          isUser ? "text-gray-200 text-right" : "text-blue-400"
+                        }`}
+                      >
+                        {isUser ? "You" : "VisuaRealm AI"}
+                      </p>
+
+                      {/* Copy button for assistant */}
+                      {!isUser && (
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(msg.content, i)}
+                          className="absolute right-2 top-2 rounded-full border border-neutral-600 bg-neutral-900/80 px-2 py-0.5 text-[10px] text-gray-300 opacity-0 transition-opacity group-hover:opacity-100"
+                        >
+                          {copiedIndex === i ? "Copied" : "Copy"}
+                        </button>
+                      )}
+
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={markdownComponents}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+
+                      {msg.fileUrl && (
+                        <img
+                          src={msg.fileUrl}
+                          className="mt-3 max-w-full rounded border border-neutral-700"
+                        />
+                      )}
+
+                      {/* Assistant suggestion chips */}
+                      {!isUser && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {[
+                            "Explain this more",
+                            "Rewrite cleaner",
+                            "Give concrete examples",
+                            "Turn into code",
+                          ].map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              onClick={() =>
+                                handleSuggestionClick(suggestion)
+                              }
+                              className="rounded-full border border-neutral-700 bg-neutral-900/90 px-2 py-1 text-[11px] text-gray-200 hover:border-blue-500 hover:text-white"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Timestamp */}
+                      <p className="mt-3 text-[10px] text-gray-500 text-right">
+                        {new Date().toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+            <div ref={chatEndRef} />
+          </div>
         </div>
       </section>
 
@@ -518,7 +587,7 @@ ${note.content}
               behavior: "smooth",
             })
           }
-          className="fixed bottom-[90px] left-6 bg-neutral-900/90 border border-neutral-700 px-3 py-1 rounded-full text-xs z-50"
+          className="fixed bottom-[120px] left-6 z-50 rounded-full border border-neutral-700 bg-neutral-950/95 px-3 py-1 text-xs text-gray-200 shadow-lg"
         >
           ↓ Jump to latest
         </button>
@@ -529,36 +598,38 @@ ${note.content}
         <button
           onClick={handleSmartImprove}
           disabled={improving}
-          className="fixed bottom-[90px] right-6 bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 rounded-full text-white shadow-lg disabled:opacity-60 z-50"
+          className="fixed bottom-[120px] right-6 z-50 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg disabled:opacity-60"
         >
-          {improving ? "Improving..." : "✨ Smart Improve"}
+          {improving ? "Improving..." : "✨ Smart Improve Note"}
         </button>
       )}
 
       {/* Global loading indicator */}
       {loading && (
-        <div className="fixed bottom-[120px] left-1/2 -translate-x-1/2 bg-neutral-900/95 border border-neutral-700 px-4 py-2 rounded-full text-xs text-gray-300 shadow-xl z-50 flex items-center gap-2">
+        <div className="fixed bottom-[150px] left-1/2 z-50 -translate-x-1/2 rounded-full border border-neutral-700 bg-neutral-950/95 px-4 py-2 text-xs text-gray-300 shadow-xl flex items-center gap-2">
           <div className="flex gap-1">
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" />
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce delay-150" />
-            <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce delay-300" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-blue-400" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-blue-400 delay-150" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-blue-400 delay-300" />
           </div>
           <span>VisuaRealm is thinking...</span>
         </div>
       )}
 
       {/* FIXED CHAT BAR */}
-      <div className="fixed bottom-[70px] left-0 right-0 bg-neutral-950 border-t border-neutral-800 z-50">
-        <div className="w-full max-w-2xl mx-auto px-4 py-3 space-y-2">
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-neutral-800 bg-neutral-950/95 backdrop-blur">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3">
           {file && filePreviewUrl && (
-            <div className="flex items-center gap-3 bg-neutral-900 border border-neutral-700 px-2 py-1 rounded">
+            <div className="flex items-center gap-3 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1">
               <img
                 src={filePreviewUrl}
-                className="w-8 h-8 rounded object-cover border border-neutral-800"
+                className="h-8 w-8 rounded object-cover border border-neutral-800"
               />
-              <span className="text-xs truncate">{file.name}</span>
+              <span className="flex-1 truncate text-xs text-gray-200">
+                {file.name}
+              </span>
               <button
-                className="text-red-400 text-xs"
+                className="text-xs text-red-400"
                 onClick={() => setFile(null)}
               >
                 ✕
@@ -566,24 +637,27 @@ ${note.content}
             </div>
           )}
 
-          <form onSubmit={sendMessage} className="flex items-center gap-2">
+          <form
+            onSubmit={sendMessage}
+            className="flex items-center gap-2 text-xs"
+          >
             <input
               type="file"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
-              className="text-xs max-w-[150px]"
+              className="max-w-[150px] cursor-pointer text-[11px] file:mr-2 file:rounded-full file:border-0 file:bg-neutral-800 file:px-2 file:py-1 file:text-[11px] file:text-gray-200"
             />
 
             <input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="flex-1 bg-neutral-900 text-gray-100 p-2 rounded outline-none"
-              placeholder="Type a message..."
+              className="flex-1 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-500 focus:border-blue-500"
+              placeholder="Ask VisuaRealm to plan, code, write, design, or explain anything..."
             />
 
             <button
               disabled={loading}
-              className="bg-blue-600 px-4 py-2 rounded text-white disabled:opacity-60"
+              className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-60 hover:bg-blue-500"
             >
               {loading ? "Sending..." : "Send"}
             </button>
