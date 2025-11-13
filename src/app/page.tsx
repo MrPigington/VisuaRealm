@@ -36,6 +36,13 @@ export default function ChatPage() {
   const [showNotes, setShowNotes] = useState(true);
   const [improving, setImproving] = useState(false);
 
+  // 🔽 new: track scroll to show "jump to bottom"
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // 🖼️ new: file preview URL
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
   // 🔐 Check authenticated user (Supabase)
   useEffect(() => {
     const checkUser = async () => {
@@ -45,10 +52,83 @@ export default function ChatPage() {
     checkUser();
   }, []);
 
+  // 📝 new: load notes from localStorage on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem("visuarealm_notes");
+      const storedActive = window.localStorage.getItem("visuarealm_active_note");
+
+      if (stored) {
+        const parsed = JSON.parse(stored) as Note[];
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setNotes(parsed);
+          const idNum = storedActive ? Number(storedActive) : parsed[0].id;
+          const exists = parsed.some((n) => n.id === idNum);
+          setActiveNote(exists ? idNum : parsed[0].id);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading notes from localStorage", err);
+    }
+  }, []);
+
+  // 📝 new: save notes + activeNote to localStorage
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem("visuarealm_notes", JSON.stringify(notes));
+      window.localStorage.setItem("visuarealm_active_note", String(activeNote));
+    } catch (err) {
+      console.error("Error saving notes to localStorage", err);
+    }
+  }, [notes, activeNote]);
+
+  // 🧷 new: file preview URL management
+  useEffect(() => {
+    if (!file) {
+      setFilePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setFilePreviewUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file]);
+
   // 🔄 Auto-scroll chat to bottom on new messages
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // ⬇️ new: show / hide "scroll to bottom" button when user scrolls up
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const handleScroll = () => {
+      const threshold = 120;
+      const distanceFromBottom =
+        el.scrollHeight - el.scrollTop - el.clientHeight;
+
+      setShowScrollToBottom(distanceFromBottom > threshold);
+    };
+
+    el.addEventListener("scroll", handleScroll);
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [messages.length]);
+
+  // 🧹 new: ESC closes notes
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowNotes(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -232,10 +312,25 @@ ${note.content}
     },
   };
 
+  function clearFile() {
+    setFile(null);
+  }
+
+  function scrollToBottom() {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    } else {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }
+
   return (
-    <main className="flex flex-col min-h-screen bg-[#0d0d0d] text-gray-100 font-sans relative">
+    <main className="flex flex-col min-h-screen bg-[#0d0d0d] text-gray-100 font-sans relative pb-28">
       {/* 🔝 Header */}
-      <header className="flex justify-between items-center bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 sticky top-0 z-50">
+      <header className="flex justify-between items-center bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 sticky top-0 z-40">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowNotes(!showNotes)}
@@ -331,8 +426,11 @@ ${note.content}
       )}
 
       {/* 💬 Chat Section */}
-      <section className="flex-1 flex flex-col items-center justify-between pb-[80px]">
-        <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      <section className="flex-1 flex flex-col items-center">
+        <div
+          ref={scrollContainerRef}
+          className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6"
+        >
           {messages.map((msg, i) => (
             <motion.div
               key={i}
@@ -372,44 +470,82 @@ ${note.content}
           )}
           <div ref={chatEndRef} />
         </div>
-
-        {/* Input box */}
-        <form
-          onSubmit={sendMessage}
-          className="w-full max-w-2xl flex items-center gap-2 bg-neutral-950 border-t border-neutral-800 px-4 py-3"
-        >
-          <input
-            type="file"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="text-xs text-gray-400"
-          />
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 bg-neutral-900 text-gray-100 p-2 rounded-md outline-none"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-60"
-          >
-            {loading ? "Sending..." : "Send"}
-          </button>
-        </form>
       </section>
+
+      {/* ⬇️ Scroll to Bottom button */}
+      {showScrollToBottom && (
+        <button
+          type="button"
+          onClick={scrollToBottom}
+          className="fixed bottom-24 left-6 bg-neutral-900/90 border border-neutral-700 text-xs px-3 py-1 rounded-full shadow-lg hover:bg-neutral-800"
+        >
+          ↓ Jump to latest
+        </button>
+      )}
 
       {/* 🪄 Floating Smart Improve Button */}
       {showNotes && (
         <button
           onClick={handleSmartImprove}
           disabled={improving}
-          className="fixed bottom-20 right-6 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold disabled:opacity-70 z-50"
+          className="fixed bottom-24 right-6 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold disabled:opacity-70 z-30"
         >
           {improving ? "Improving..." : "✨ Smart Improve"}
         </button>
       )}
+
+      {/* 📥 Fixed bottom input bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-neutral-950 border-t border-neutral-800 z-40">
+        <div className="w-full max-w-2xl mx-auto px-4 py-3 flex flex-col gap-2">
+          {/* File preview + remove */}
+          {file && filePreviewUrl && (
+            <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-700 rounded-md px-2 py-1">
+              {file.type.startsWith("image/") && (
+                <img
+                  src={filePreviewUrl}
+                  alt="preview"
+                  className="w-8 h-8 rounded object-cover border border-neutral-700"
+                />
+              )}
+              <span className="text-xs text-gray-300 truncate max-w-[140px]">
+                {file.name}
+              </span>
+              <button
+                type="button"
+                onClick={clearFile}
+                className="text-red-400 hover:text-red-500 text-xs"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <form
+            onSubmit={sendMessage}
+            className="flex items-center gap-2"
+          >
+            <input
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="text-xs text-gray-400 max-w-[160px]"
+            />
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type a message..."
+              className="flex-1 bg-neutral-900 text-gray-100 p-2 rounded-md outline-none"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-60"
+            >
+              {loading ? "Sending..." : "Send"}
+            </button>
+          </form>
+        </div>
+      </div>
     </main>
   );
 }
