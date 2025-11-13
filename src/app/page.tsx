@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { motion } from "framer-motion";
-import { supabase } from "@/lib/supabaseClient"; // ✅ fixed import
+import { supabase } from "@/lib/supabaseClient";
 
 interface Message {
   role: "user" | "assistant";
@@ -22,7 +22,7 @@ interface Note {
 }
 
 export default function ChatPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<Record<string, any> | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -33,30 +33,26 @@ export default function ChatPage() {
     { id: 1, title: "main.js", content: "", editing: false },
   ]);
   const [activeId, setActiveId] = useState(1);
-  const [noteLoading, setNoteLoading] = useState(false);
-  const activeNote = notes.find((n) => n.id === activeId)!;
 
-  // ✅ Check user login
+  // ✅ Just check if user exists, don't force redirect
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
-      if (!data?.user) window.location.href = "/login";
-      else setUser(data.user);
+      setUser(data?.user || null);
     };
     checkUser();
   }, []);
 
-  // ✅ Auto scroll
+  // ✅ Auto scroll when new messages appear
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    setUser(null);
   }
 
-  // ✅ Helper to parse AI reply
   function splitResponse(content: string) {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
     if (normalized.includes("```") || normalized.includes("{"))
@@ -100,7 +96,10 @@ export default function ChatPage() {
 
       if (main) setMessages((p) => [...p, { role: "assistant", content: main }]);
       if (recap)
-        setMessages((p) => [...p, { role: "assistant", content: recap, type: "recap" }]);
+        setMessages((p) => [
+          ...p,
+          { role: "assistant", content: recap, type: "recap" },
+        ]);
       if (urls.length > 0) {
         const linksText =
           "🔗 Resource Links:\n" +
@@ -125,11 +124,14 @@ export default function ChatPage() {
   const markdownComponents: Components = {
     code({ className, children }) {
       const match = /language-(\w+)/.exec(className || "");
-      return match ? (
-        <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
-          <code>{String(children).replace(/\n$/, "")}</code>
-        </pre>
-      ) : (
+      if (match) {
+        return (
+          <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
+            <code>{String(children).replace(/\n$/, "")}</code>
+          </pre>
+        );
+      }
+      return (
         <code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">
           {children}
         </code>
@@ -142,13 +144,20 @@ export default function ChatPage() {
       {/* 🔝 Header */}
       <header className="flex justify-between items-center bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 sticky top-0 z-50">
         <h1 className="text-lg font-bold">💬 VisuaRealm Chat</h1>
-        {user && (
+        {user ? (
           <button
             onClick={handleLogout}
             className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded-md"
           >
             Log Out
           </button>
+        ) : (
+          <a
+            href="/login"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded-md"
+          >
+            Sign In
+          </a>
         )}
       </header>
 
@@ -175,7 +184,10 @@ export default function ChatPage() {
                     navigator.clipboard.writeText(msg.content);
                 }}
               >
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={markdownComponents}
+                >
                   {msg.content}
                 </ReactMarkdown>
                 {msg.fileUrl && (
