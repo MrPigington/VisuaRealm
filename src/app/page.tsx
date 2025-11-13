@@ -40,6 +40,9 @@ export default function ChatPage() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
+  // 🔄 copy state
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
   // Supabase auth
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -59,10 +62,14 @@ export default function ChatPage() {
         if (parsed.length > 0) {
           setNotes(parsed);
           const idNum = storedActive ? Number(storedActive) : parsed[0].id;
-          setActiveNote(parsed.some((n) => n.id === idNum) ? idNum : parsed[0].id);
+          setActiveNote(
+            parsed.some((n) => n.id === idNum) ? idNum : parsed[0].id
+          );
         }
       }
-    } catch {}
+    } catch {
+      // ignore bad localStorage
+    }
   }, []);
 
   // Save notes
@@ -80,7 +87,7 @@ export default function ChatPage() {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  // Auto scroll
+  // Auto scroll on new messages
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -146,7 +153,9 @@ export default function ChatPage() {
     const recapMatch = normalized.match(recapRegex);
     const recap = recapMatch ? recapMatch[0].trim() : null;
 
-    const withoutRecap = recap ? normalized.replace(recap, "").trim() : normalized;
+    const withoutRecap = recap
+      ? normalized.replace(recap, "").trim()
+      : normalized;
 
     const urlRegex = /(https?:\/\/[^\s]+)/gi;
     const urls = [...withoutRecap.matchAll(urlRegex)].map((m) => m[0]);
@@ -184,7 +193,10 @@ export default function ChatPage() {
         setMessages((p) => [...p, { role: "assistant", content: main }]);
 
       if (recap)
-        setMessages((p) => [...p, { role: "assistant", content: recap, type: "recap" }]);
+        setMessages((p) => [
+          ...p,
+          { role: "assistant", content: recap, type: "recap" },
+        ]);
 
       if (urls.length)
         setMessages((p) => [
@@ -248,11 +260,34 @@ ${note.content}
     }
   }
 
+  // 🔄 Copy feature for assistant messages
+  async function handleCopy(content: string, index: number) {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        // fallback
+        const textarea = document.createElement("textarea");
+        textarea.value = content;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 1500);
+    } catch {
+      // ignore errors silently
+    }
+  }
+
   const markdownComponents: Components = {
     code({ className, children }) {
       const match = /language-(\w+)/.exec(className || "");
       return match ? (
-        <pre className="bg-black/80 p-3 rounded-lg text-green-400 overflow-x-auto text-sm">
+        <pre className="bg-black/80 p-3 rounded-lg text-green-400 overflow-x-auto text-sm shadow-[0_0_10px_rgba(0,255,150,0.3)]">
           <code>{String(children).replace(/\n$/, "")}</code>
         </pre>
       ) : (
@@ -265,7 +300,6 @@ ${note.content}
 
   return (
     <main className="flex flex-col min-h-screen bg-[#0d0d0d] text-gray-100">
-
       {/* Header */}
       <header className="sticky top-0 bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 z-40">
         <div className="flex items-center gap-3">
@@ -377,9 +411,10 @@ ${note.content}
               key={i}
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: i * 0.03 }}
             >
               <div
-                className={`max-w-[85%] p-4 rounded-2xl text-sm ${
+                className={`max-w-[85%] p-4 rounded-2xl text-sm relative group ${
                   msg.role === "user"
                     ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
                     : msg.type === "recap"
@@ -387,6 +422,17 @@ ${note.content}
                     : "bg-neutral-900 text-gray-200 border border-neutral-800"
                 }`}
               >
+                {/* Copy button for assistant messages */}
+                {msg.role === "assistant" && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(msg.content, i)}
+                    className="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full bg-neutral-800/80 border border-neutral-600 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    {copiedIndex === i ? "Copied" : "Copy"}
+                  </button>
+                )}
+
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={markdownComponents}
@@ -433,10 +479,21 @@ ${note.content}
         </button>
       )}
 
-      {/* FIXED CHAT BAR — FINAL VERSION */}
+      {/* Global loading indicator */}
+      {loading && (
+        <div className="fixed bottom-[120px] left-1/2 -translate-x-1/2 bg-neutral-900/95 border border-neutral-700 px-4 py-2 rounded-full text-xs text-gray-300 shadow-xl z-50 flex items-center gap-2">
+          <div className="flex gap-1">
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" />
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce delay-150" />
+            <span className="w-2 h-2 rounded-full bg-blue-400 animate-bounce delay-300" />
+          </div>
+          <span>VisuaRealm is thinking...</span>
+        </div>
+      )}
+
+      {/* FIXED CHAT BAR */}
       <div className="fixed bottom-[70px] left-0 right-0 bg-neutral-950 border-t border-neutral-800 z-50">
         <div className="w-full max-w-2xl mx-auto px-4 py-3 space-y-2">
-
           {file && filePreviewUrl && (
             <div className="flex items-center gap-3 bg-neutral-900 border border-neutral-700 px-2 py-1 rounded">
               <img
@@ -474,7 +531,6 @@ ${note.content}
               {loading ? "Sending..." : "Send"}
             </button>
           </form>
-
         </div>
       </div>
     </main>
