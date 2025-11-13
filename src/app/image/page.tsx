@@ -10,7 +10,7 @@ export default function ImagePage() {
   const [loading, setLoading] = useState(false);
 
   /* --------------------------------------------------
-      🔥 Generate AI Image  (calls /api/image)
+        🔥 Generate AI Image (uses /api/image)
   ---------------------------------------------------*/
   async function generateImage() {
     if (!prompt.trim()) return;
@@ -27,10 +27,14 @@ export default function ImagePage() {
       });
 
       const data = await res.json();
-      setResultImage(data.image || null);
-      if (!data.image) setResultText("⚠️ No image returned.");
+
+      if (data.image) {
+        setResultImage(data.image);
+      } else {
+        setResultText(data.error || "⚠️ No image returned.");
+      }
     } catch (err) {
-      console.error(err);
+      console.error("❌ generateImage error:", err);
       setResultText("⚠️ Error generating image.");
     }
 
@@ -38,8 +42,8 @@ export default function ImagePage() {
   }
 
   /* --------------------------------------------------
-      🔍 Analyze Uploaded Image → Text
-      (uses your existing /api/chat)
+        🔍 Analyze Uploaded Image → Text
+        (uses existing /api/chat vision logic)
   ---------------------------------------------------*/
   async function analyzeImage() {
     if (!file) return;
@@ -52,7 +56,12 @@ export default function ImagePage() {
       const formData = new FormData();
       formData.append(
         "messages",
-        JSON.stringify([{ role: "user", content: "Describe this image in full detail." }])
+        JSON.stringify([
+          {
+            role: "user",
+            content: "Describe this image in full detail. Focus on objects, colors, style, scene."
+          }
+        ])
       );
       formData.append("file", file);
 
@@ -64,7 +73,7 @@ export default function ImagePage() {
       const data = await res.json();
       setResultText(data.reply || "No response.");
     } catch (err) {
-      console.error(err);
+      console.error("❌ analyzeImage error:", err);
       setResultText("⚠️ Error analyzing image.");
     }
 
@@ -76,7 +85,7 @@ export default function ImagePage() {
       <h1 className="text-2xl font-bold mb-6">🎨 AI Image Studio</h1>
 
       {/* --------------------------------------------------
-          IMAGE GENERATION
+            IMAGE GENERATION
       --------------------------------------------------- */}
       <div className="mb-10 p-4 bg-neutral-900 rounded-lg border border-neutral-700">
         <h2 className="text-lg font-semibold mb-2">Generate Image</h2>
@@ -99,7 +108,7 @@ export default function ImagePage() {
       </div>
 
       {/* --------------------------------------------------
-          IMAGE → TEXT ANALYSIS
+            IMAGE → TEXT ANALYSIS
       --------------------------------------------------- */}
       <div className="mb-10 p-4 bg-neutral-900 rounded-lg border border-neutral-700">
         <h2 className="text-lg font-semibold mb-2">Analyze Image</h2>
@@ -120,7 +129,7 @@ export default function ImagePage() {
       </div>
 
       {/* --------------------------------------------------
-          OUTPUT
+            OUTPUT
       --------------------------------------------------- */}
       <div className="p-4 bg-neutral-900 rounded-lg border border-neutral-700 mb-20">
         <h2 className="text-lg font-semibold mb-3">Result</h2>
@@ -131,6 +140,7 @@ export default function ImagePage() {
           <img
             src={resultImage}
             className="w-full rounded border border-neutral-700 mb-4"
+            alt="Generated result"
           />
         )}
 

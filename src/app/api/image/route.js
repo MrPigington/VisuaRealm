@@ -1,38 +1,32 @@
 import OpenAI from "openai";
+
 export const runtime = "nodejs";
 
 const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,   // secure & correct
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 export async function POST(req) {
   try {
-    const type = req.headers.get("content-type") || "";
+    const { prompt } = await req.json();
 
-    // Ensure JSON request
-    if (!type.includes("application/json")) {
-      return json({ error: "Invalid request type. Expected JSON." }, 400);
-    }
-
-    const body = await req.json();
-    const prompt = body?.prompt || "";
-
-    if (!prompt || prompt.length < 3) {
+    if (!prompt || prompt.trim().length < 3) {
       return json({ error: "Prompt too short." }, 400);
     }
 
-    // 🔥 Generate image with GPT Image model
+    // 🚀 Generate image using GPT Image Model
     const response = await client.images.generate({
       model: "gpt-image-1",
       prompt,
       size: "1024x1024",
-      quality: "high"
+      response_format: "b64_json", // ✅ REQUIRED OR IT RETURNS NULL
     });
 
-    const base64 = response?.data?.[0]?.b64_json;
+    const base64 = response.data?.[0]?.b64_json;
 
     if (!base64) {
-      return json({ error: "No image returned from OpenAI." }, 500);
+      console.error("❌ No image from OpenAI:", response);
+      return json({ error: "Image generation failed." }, 500);
     }
 
     return json({
@@ -40,12 +34,11 @@ export async function POST(req) {
     });
 
   } catch (err) {
-    console.error("❌ /api/image error:", err);
+    console.error("❌ Image API error:", err);
     return json({ error: err.message || "Server error." }, 500);
   }
 }
 
-/* ------------------ Helper ------------------ */
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
