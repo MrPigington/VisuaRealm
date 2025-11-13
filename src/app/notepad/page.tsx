@@ -237,7 +237,6 @@ export default function NotepadPage() {
 
   function handleModeClick(mode: AiMode) {
     setAiMode(mode);
-    // Just focus the input. No auto-filling.
     setTimeout(() => aiInputRef.current?.focus(), 10);
   }
 
@@ -325,15 +324,15 @@ Return ONLY the content that should be written into the note. No meta explanatio
       }
     } finally {
       setAiLoading(false);
-      setAiInput(""); // no hanging text
+      setAiInput("");
     }
   }
 
   /* --------------------------------- RENDER -------------------------------- */
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black px-4 py-4 pb-40 text-gray-100 flex flex-col">
-      {/* ------------------------- TOP NAV BUTTONS ------------------------- */}
+    <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black px-4 py-4 pb-10 text-gray-100 flex flex-col">
+      {/* TOP NAV BUTTONS */}
       <div className="mx-auto mb-4 flex max-w-5xl justify-center gap-4">
         <TopNavButton href="/" label="Main Chat" emoji="💬" />
         <TopNavButton href="/chatlist" label="Chat List" emoji="📚" />
@@ -342,7 +341,7 @@ Return ONLY the content that should be written into the note. No meta explanatio
         <TopNavButton href="/image" label="Image Gen" emoji="🎨" />
       </div>
 
-      {/* ------------------------- CENTERED CARD LAYOUT ------------------------- */}
+      {/* CENTERED CARD LAYOUT */}
       <div className="flex-1 flex justify-center items-start">
         <div className="w-full max-w-5xl">
           {/* Mobile quick filters */}
@@ -586,7 +585,8 @@ Return ONLY the content that should be written into the note. No meta explanatio
                       Select a note or create a new one.
                     </div>
                   ) : (
-                    <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-3 shadow-[0_0_25px_rgba(15,23,42,0.95)]">
+                    <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-4 shadow-[0_0_25px_rgba(15,23,42,0.95)]">
+                      {/* Title + Folder */}
                       <div className="flex items-center justify-between gap-2">
                         <input
                           value={active.title}
@@ -616,6 +616,51 @@ Return ONLY the content that should be written into the note. No meta explanatio
                         </select>
                       </div>
 
+                      {/* AI MODE BAR INSIDE EDITOR */}
+                      <div className="rounded-xl border border-neutral-800 bg-neutral-900/70 px-3 py-2 space-y-1">
+                        <div className="flex flex-wrap gap-1.5 text-[10px]">
+                          <AiModeButton
+                            mode="free"
+                            current={aiMode}
+                            emoji="🧠"
+                            label="Ask"
+                            onClick={() => handleModeClick("free")}
+                          />
+                          <AiModeButton
+                            mode="improve"
+                            current={aiMode}
+                            emoji="✨"
+                            label="Improve"
+                            onClick={() => handleModeClick("improve")}
+                          />
+                          <AiModeButton
+                            mode="summarize"
+                            current={aiMode}
+                            emoji="🧾"
+                            label="Summary"
+                            onClick={() => handleModeClick("summarize")}
+                          />
+                          <AiModeButton
+                            mode="tasks"
+                            current={aiMode}
+                            emoji="✅"
+                            label="Tasks"
+                            onClick={() => handleModeClick("tasks")}
+                          />
+                          <AiModeButton
+                            mode="rewrite"
+                            current={aiMode}
+                            emoji="🎨"
+                            label="Rewrite"
+                            onClick={() => handleModeClick("rewrite")}
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-400">
+                          {getModeLabel(aiMode)}
+                        </p>
+                      </div>
+
+                      {/* TEXTAREA */}
                       <textarea
                         value={active.content}
                         onChange={(e) =>
@@ -628,58 +673,84 @@ Return ONLY the content that should be written into the note. No meta explanatio
                         placeholder="Write freely..."
                       />
 
-                      <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
-                        <ToggleButton
-                          active={active.pinned}
-                          onClick={() =>
-                            updateNote(active.id, {
-                              pinned: !active.pinned,
-                            })
+                      {/* AI INPUT INLINE */}
+                      <form
+                        onSubmit={handleAiSubmit}
+                        className="flex items-center gap-2 text-xs"
+                      >
+                        <input
+                          ref={aiInputRef}
+                          value={aiInput}
+                          onChange={(e) => setAiInput(e.target.value)}
+                          className="flex-1 rounded-full border border-neutral-600 bg-black/40 px-3 py-2 text-xs text-gray-50 outline-none placeholder:text-gray-400 focus:border-blue-400"
+                          placeholder={
+                            active
+                              ? "Optional: tell AI how to transform this note..."
+                              : "No active note — describe what you want AI to create..."
                           }
-                          label={active.pinned ? "Unpin" : "Pin"}
-                          emoji="📌"
                         />
-                        <ToggleButton
-                          active={active.favorite}
-                          onClick={() =>
-                            updateNote(active.id, {
-                              favorite: !active.favorite,
-                            })
-                          }
-                          label={
-                            active.favorite ? "Unfavorite" : "Favorite"
-                          }
-                          emoji="⭐"
-                        />
-                        <ToggleButton
-                          active={active.done}
-                          onClick={() =>
-                            updateNote(active.id, {
-                              done: !active.done,
-                            })
-                          }
-                          label={active.done ? "Not done" : "Done"}
-                          emoji="✅"
-                        />
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between">
                         <button
-                          onClick={() => deleteNote(active.id)}
-                          className="text-[11px] text-red-400 hover:text-red-300"
+                          disabled={aiLoading}
+                          className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
                         >
-                          🗑️ Delete
+                          {aiLoading ? "Thinking..." : "Run AI"}
                         </button>
+                      </form>
 
-                        <p className="text-[10px] text-gray-500">
-                          Last edit{" "}
-                          {new Date(active.updated).toLocaleString([], {
-                            month: "short",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </p>
+                      {/* META + TOGGLES */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div className="flex flex-wrap gap-2 text-[11px]">
+                          <ToggleButton
+                            active={active.pinned}
+                            onClick={() =>
+                              updateNote(active.id, {
+                                pinned: !active.pinned,
+                              })
+                            }
+                            label={active.pinned ? "Unpin" : "Pin"}
+                            emoji="📌"
+                          />
+                          <ToggleButton
+                            active={active.favorite}
+                            onClick={() =>
+                              updateNote(active.id, {
+                                favorite: !active.favorite,
+                              })
+                            }
+                            label={
+                              active.favorite ? "Unfavorite" : "Favorite"
+                            }
+                            emoji="⭐"
+                          />
+                          <ToggleButton
+                            active={active.done}
+                            onClick={() =>
+                              updateNote(active.id, {
+                                done: !active.done,
+                              })
+                            }
+                            label={active.done ? "Not done" : "Done"}
+                            emoji="✅"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <p className="text-[10px] text-gray-500">
+                            Last edit{" "}
+                            {new Date(active.updated).toLocaleString([], {
+                              month: "short",
+                              day: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          <button
+                            onClick={() => deleteNote(active.id)}
+                            className="text-[11px] text-red-400 hover:text-red-300"
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -687,76 +758,6 @@ Return ONLY the content that should be written into the note. No meta explanatio
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* ---------------------------- AI DOCK ---------------------------- */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-800 bg-gradient-to-r from-violet-700 via-fuchsia-600 to-blue-600/90 backdrop-blur-xl shadow-[0_-8px_40px_rgba(0,0,0,0.95)]">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3">
-          <div className="flex flex-wrap gap-2 text-[11px]">
-            <DockButton
-              active={aiMode === "free"}
-              onClick={() => handleModeClick("free")}
-              color="blue"
-              emoji="🧠"
-              label="Ask AI"
-            />
-            <DockButton
-              active={aiMode === "improve"}
-              onClick={() => handleModeClick("improve")}
-              color="emerald"
-              emoji="✨"
-              label="Improve"
-            />
-            <DockButton
-              active={aiMode === "summarize"}
-              onClick={() => handleModeClick("summarize")}
-              color="cyan"
-              emoji="🧾"
-              label="Summarize"
-            />
-            <DockButton
-              active={aiMode === "tasks"}
-              onClick={() => handleModeClick("tasks")}
-              color="amber"
-              emoji="✅"
-              label="Tasks"
-            />
-            <DockButton
-              active={aiMode === "rewrite"}
-              onClick={() => handleModeClick("rewrite")}
-              color="purple"
-              emoji="🎨"
-              label="Rewrite"
-            />
-          </div>
-
-          <p className="text-[10px] text-gray-100/80">
-            {getModeLabel(aiMode)}
-          </p>
-
-          <form
-            onSubmit={handleAiSubmit}
-            className="flex items-center gap-2 text-xs"
-          >
-            <input
-              ref={aiInputRef}
-              value={aiInput}
-              onChange={(e) => setAiInput(e.target.value)}
-              className="flex-1 rounded-full border border-neutral-300/40 bg-black/25 px-3 py-2 text-xs text-gray-50 outline-none placeholder:text-gray-200/70 focus:border-white"
-              placeholder={
-                active
-                  ? "Optional: tell AI how to transform this note..."
-                  : "No active note — describe what you want AI to create..."
-              }
-            />
-            <button
-              disabled={aiLoading}
-              className="rounded-full bg-black/70 px-4 py-2 text-xs font-semibold text-white hover:bg-black/90 disabled:opacity-60"
-            >
-              {aiLoading ? "Thinking..." : "Run AI"}
-            </button>
-          </form>
         </div>
       </div>
     </main>
@@ -869,41 +870,32 @@ function ToggleButton({
   );
 }
 
-function DockButton({
-  active,
-  onClick,
-  color,
+function AiModeButton({
+  mode,
+  current,
   emoji,
   label,
+  onClick,
 }: {
-  active: boolean;
-  onClick: () => void;
-  color: "blue" | "emerald" | "cyan" | "amber" | "purple";
+  mode: AiMode;
+  current: AiMode;
   emoji: string;
   label: string;
+  onClick: () => void;
 }) {
-  const activeStyles =
-    color === "blue"
-      ? "border-blue-200 bg-blue-500/30 text-blue-50"
-      : color === "emerald"
-      ? "border-emerald-200 bg-emerald-500/30 text-emerald-50"
-      : color === "cyan"
-      ? "border-cyan-200 bg-cyan-500/30 text-cyan-50"
-      : color === "amber"
-      ? "border-amber-200 bg-amber-400/30 text-amber-50"
-      : "border-purple-200 bg-purple-500/30 text-purple-50";
-
+  const isActive = mode === current;
   return (
     <button
-      onClick={onClick}
       type="button"
-      className={`rounded-full border px-3 py-1 ${
-        active
-          ? activeStyles
-          : "border-white/20 bg-black/20 text-gray-100"
+      onClick={onClick}
+      className={`flex items-center gap-1 rounded-full border px-2.5 py-1 ${
+        isActive
+          ? "border-blue-400 bg-blue-500/20 text-blue-100"
+          : "border-neutral-600 bg-black/30 text-gray-200 hover:border-blue-400 hover:text-blue-100"
       }`}
     >
-      {emoji} {label}
+      <span>{emoji}</span>
+      <span>{label}</span>
     </button>
   );
 }
