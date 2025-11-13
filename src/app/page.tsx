@@ -14,14 +14,28 @@ interface Message {
   fileUrl?: string;
 }
 
+interface Note {
+  id: number;
+  title: string;
+  content: string;
+  editing: boolean;
+}
+
 export default function ChatPage() {
-  const [user, setUser] = useState<Record<string, any> | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  const [notes, setNotes] = useState<Note[]>([
+    { id: 1, title: "main.js", content: "", editing: false },
+  ]);
+  const [activeId, setActiveId] = useState(1);
+  const activeNote = notes.find((n) => n.id === activeId)!;
+
+  // ✅ Just check if user exists (don’t redirect automatically)
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -30,6 +44,7 @@ export default function ChatPage() {
     checkUser();
   }, []);
 
+  // ✅ Auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -82,10 +97,7 @@ export default function ChatPage() {
 
       if (main) setMessages((p) => [...p, { role: "assistant", content: main }]);
       if (recap)
-        setMessages((p) => [
-          ...p,
-          { role: "assistant", content: recap, type: "recap" },
-        ]);
+        setMessages((p) => [...p, { role: "assistant", content: recap, type: "recap" }]);
       if (urls.length > 0) {
         const linksText =
           "🔗 Resource Links:\n" +
@@ -110,14 +122,11 @@ export default function ChatPage() {
   const markdownComponents: Components = {
     code({ className, children }) {
       const match = /language-(\w+)/.exec(className || "");
-      if (match) {
-        return (
-          <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
-            <code>{String(children).replace(/\n$/, "")}</code>
-          </pre>
-        );
-      }
-      return (
+      return match ? (
+        <pre className="bg-black/80 p-3 rounded-lg overflow-x-auto text-green-400 text-sm my-2">
+          <code>{String(children).replace(/\n$/, "")}</code>
+        </pre>
+      ) : (
         <code className="bg-black/40 text-green-300 px-1.5 py-0.5 rounded-md text-sm">
           {children}
         </code>
@@ -130,25 +139,18 @@ export default function ChatPage() {
       {/* 🔝 Header */}
       <header className="flex justify-between items-center bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 sticky top-0 z-50">
         <h1 className="text-lg font-bold">💬 VisuaRealm Chat</h1>
-        {user ? (
+        {user && (
           <button
             onClick={handleLogout}
             className="bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1 rounded-md"
           >
             Log Out
           </button>
-        ) : (
-          <a
-            href="/login"
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-1 rounded-md"
-          >
-            Sign In
-          </a>
         )}
       </header>
 
-      {/* 💬 Chat Messages */}
-      <section className="flex-1 flex flex-col items-center justify-between overflow-hidden">
+      {/* 💬 Chat Section */}
+      <section className="flex-1 flex flex-col items-center justify-between">
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6">
           {messages.map((msg, i) => (
             <motion.div
@@ -170,14 +172,15 @@ export default function ChatPage() {
                     navigator.clipboard.writeText(msg.content);
                 }}
               >
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={markdownComponents}
-                >
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                   {msg.content}
                 </ReactMarkdown>
                 {msg.fileUrl && (
-                  <img src={msg.fileUrl} className="mt-2 max-w-full rounded-md" />
+                  <img
+                    src={msg.fileUrl}
+                    alt="uploaded"
+                    className="mt-2 max-w-full rounded-md border border-neutral-800"
+                  />
                 )}
               </div>
             </motion.div>
@@ -190,29 +193,29 @@ export default function ChatPage() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* 💬 Chat Input */}
+        {/* ✏️ Input Box */}
         <form
           onSubmit={sendMessage}
-          className="w-full max-w-2xl flex items-center gap-3 px-4 py-3 border-t border-neutral-800 bg-neutral-950/90"
+          className="w-full max-w-2xl flex items-center gap-2 bg-neutral-950 border-t border-neutral-800 px-4 py-3"
         >
+          <input
+            type="file"
+            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            className="text-xs text-gray-400"
+          />
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type a message..."
-            className="flex-1 bg-neutral-900 border border-neutral-800 text-white rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <input
-            type="file"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="text-sm text-gray-400"
+            className="flex-1 bg-neutral-900 text-gray-100 p-2 rounded-md outline-none"
           />
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium disabled:opacity-60"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md disabled:opacity-60"
           >
-            {loading ? "..." : "Send"}
+            Send
           </button>
         </form>
       </section>
