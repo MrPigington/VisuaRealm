@@ -4,9 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-// ✅ Fixes build crash (no more invalid revalidate)
+/**
+ * ✅ Disable all caching, static rendering, or ISR.
+ * This tells Next.js + Vercel that this page is *fully dynamic*.
+ */
+export const runtime = "edge";
 export const dynamic = "force-dynamic";
-export const revalidate = 0; // ✅ must be number (not boolean)
+export const revalidate = false; // Must be *false*, not object
+export const dynamicParams = true;
 export const fetchCache = "force-no-store";
 
 export default function LoginPage() {
@@ -17,20 +22,29 @@ export default function LoginPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
   async function handleSignIn() {
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) alert(error.message);
-    else router.push("/chat");
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) return alert(error.message);
+      router.push("/chat");
+    } catch (err) {
+      console.error(err);
+      alert("Unexpected error signing in.");
+    }
   }
 
   async function handleSignUp() {
-    setLoading(true);
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    setLoading(false);
-    if (error) alert(error.message);
-    else if (!data.user?.email_confirmed_at)
-      alert("✅ Account created! Check your email (if confirmations are enabled).");
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signUp({ email, password });
+      setLoading(false);
+      if (error) return alert(error.message);
+      alert("✅ Account created! If verification is enabled, check your email.");
+    } catch (err) {
+      console.error(err);
+      alert("Unexpected error creating account.");
+    }
   }
 
   return (
@@ -60,7 +74,11 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold transition disabled:opacity-60"
         >
-          {loading ? "Processing..." : mode === "signin" ? "Sign In" : "Sign Up"}
+          {loading
+            ? "Processing..."
+            : mode === "signin"
+            ? "Sign In"
+            : "Sign Up"}
         </button>
 
         <p className="mt-4 text-center text-sm text-gray-400">
