@@ -16,15 +16,23 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.className} bg-[#0d0d0d] text-gray-100 min-h-screen relative`}
+        className={`${inter.className} bg-[#0d0d0d] text-gray-100 min-h-screen`}
       >
-        {/* MAIN CONTENT — give it padding so bottom nav NEVER overlaps */}
-        <div className="min-h-screen pb-[110px]">
+        {/* MAIN CONTENT — extra bottom padding so chat bar + nav never overlap */}
+        <div className="min-h-screen pb-[150px]">
           {children}
         </div>
 
         {/* BOTTOM NAV */}
-        <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 flex justify-around items-center py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.5)] border-t border-white/10 z-50">
+        <nav className="
+          fixed bottom-0 left-0 right-0
+          bg-gradient-to-r from-purple-600 to-blue-600
+          flex justify-around items-center
+          py-3
+          shadow-[0_-2px_12px_rgba(0,0,0,0.5)]
+          border-t border-white/10
+          z-40
+        ">
           {[
             { label: "Flow", path: "/" },
             { label: "Chat", path: "/chat" },
