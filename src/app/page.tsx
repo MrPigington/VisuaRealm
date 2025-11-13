@@ -599,8 +599,14 @@ ${note.content}
         </div>
       )}
 
-      {/* FIXED CHAT BAR */}
-      <div className="shrink-0 fixed bottom-0 left-0 right-0 z-50 border-t border-neutral-800 bg-neutral-950/95 backdrop-blur">
+      {/* FIXED CHAT BAR — PREMIUM VISUAREALM VERSION */}
+      <div
+        className="shrink-0 fixed bottom-0 left-0 right-0 z-50 
+                   border-t border-neutral-700 
+                   bg-[#0d0d16]/90 
+                   backdrop-blur-xl 
+                   shadow-[0_-8px_30px_rgba(0,0,0,0.85)]"
+      >
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3">
 
           {file && filePreviewUrl && (
