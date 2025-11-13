@@ -15,7 +15,6 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      {/* ✅ body gets className — html shouldn't have font class directly */}
       <body
         className={`${inter.className} bg-[#0d0d0d] text-gray-100 min-h-screen pb-24 relative`}
       >
@@ -25,12 +24,11 @@ export default function RootLayout({
         {/* 🔻 Persistent bottom navigation */}
         <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 flex justify-around items-center py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.5)] border-t border-white/10 z-50">
           {[
-            { label: "Main", path: "/" },
+            { label: "Flow", path: "/" },            // 🆕 Renamed from Main
             { label: "Chat", path: "/chat" },
-            { label: "Research", path: "/research" },
-            { label: "Notepad", path: "/notepad" },
-            { label: "Projects", path: "/projects" },
+            { label: "Image Gen", path: "/image" },  // 🆕 New tab
             { label: "Whiteboard", path: "/whiteboard" },
+            { label: "Notepad", path: "/notepad" },
           ].map((item, i) => (
             <Link
               key={i}
