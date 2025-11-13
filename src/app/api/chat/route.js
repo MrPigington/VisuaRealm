@@ -5,80 +5,127 @@ const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+/* ------------------------------ MODEL LOGIC ------------------------------ */
+
+function chooseModel(userText = "", hasImage = false) {
+  const t = userText.toLowerCase();
+
+  if (hasImage) return "gpt-4o"; // vision-quality
+
+  // Code-heavy → use deep model
+  if (
+    t.includes("code") ||
+    t.includes("fix") ||
+    t.includes("build") ||
+    t.includes("unity") ||
+    t.includes("java") ||
+    t.includes("c#") ||
+    t.includes("c++") ||
+    t.includes("engine") ||
+    t.includes("game") ||
+    t.includes("python") ||
+    t.includes("unreal")
+  ) {
+    return "gpt-4o"; // full power
+  }
+
+  // Normal conversation → cheap model
+  return "gpt-4o-mini";
+}
+
+/* ------------------------------ HELPERS ------------------------------ */
+
+function detectContext(text = "") {
+  if (/(react|js|code|python|api|unreal|ue5|function)/i.test(text))
+    return "🧠 Programming & Tech";
+  if (/(business|startup|money|marketing|users)/i.test(text))
+    return "💼 Business & Strategy";
+  if (/(design|image|art|logo|visual|ui)/i.test(text))
+    return "🎨 Design & Visual";
+  if (/(music|guitar|song|lyrics|album)/i.test(text))
+    return "🎵 Music & Creativity";
+  if (/(life|mindset|study|growth|improve)/i.test(text))
+    return "🌱 Learning & Self-Improvement";
+  return "💬 General";
+}
+
+function formatReply(context, main, summary) {
+  return `> **${context}**\n\n${main}\n\n---\n\n📘 **Quick Recap:** ${summary}`;
+}
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify({ reply: data }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/* ------------------------------ MAIN HANDLER ------------------------------ */
+
 export async function POST(req) {
   try {
     const type = req.headers.get("content-type") || "";
 
-    // 🧠 JSON-only (normal chat)
     if (type.includes("application/json")) {
       const { messages } = await req.json();
-      return await handleUniversal(messages);
+      return await handleAll(messages, null);
     }
 
-    // 🖼 Multipart (chat + image)
     if (type.includes("multipart/form-data")) {
       const form = await req.formData();
       const messages = JSON.parse(form.get("messages") || "[]");
       const file = form.get("file");
 
-      // Vercel-safe check
-      if (!file || typeof file.arrayBuffer !== "function") {
-        return await handleUniversal(messages);
-      }
+      if (!file || typeof file.arrayBuffer !== "function")
+        return await handleAll(messages, null);
 
-      // Convert to base64
       const buffer = Buffer.from(await file.arrayBuffer());
       const mime = file.type || "image/png";
-      const dataUrl = `data:${mime};base64,${buffer.toString("base64")}`;
+      const img = `data:${mime};base64,${buffer.toString("base64")}`;
 
-      return await handleUniversal(messages, dataUrl);
+      return await handleAll(messages, img);
     }
 
     return json("⚠️ Unsupported request type.", 400);
   } catch (err) {
-    console.error("❌ Universal route error:", err);
-    return json(`⚠️ ${err.message || "Server error."}`, 500);
+    console.error("❌ API Error:", err);
+    return json("⚠️ Server error.", 500);
   }
 }
 
-/* ------------------ Core Logic ------------------ */
+/* ------------------------------ CORE LOGIC ------------------------------ */
 
-async function handleUniversal(messages = [], image = null) {
-  const last = messages.at(-1)?.content?.toLowerCase() || "";
-  const context = detectContext(last);
-  const mode = detectMode(last);
+async function handleAll(messages = [], image = null) {
+  const lastUser = messages.at(-1)?.content || "";
+  const context = detectContext(lastUser);
+  const model = chooseModel(lastUser, !!image);
 
-  // Correct vision block
   const visionBlock = image
     ? [
         {
           role: "user",
           content: [
             { type: "image_url", image_url: { url: image } },
-            { type: "text", text: `Analyze this image and assist with: ${last}` },
+            { type: "text", text: lastUser },
           ],
         },
       ]
     : [];
 
   const completion = await client.chat.completions.create({
-    model: "gpt-4o-mini",
+    model,
     temperature: 0.8,
-    max_tokens: 1800,
+    max_tokens: 2500,
     messages: [
       {
         role: "system",
         content: `
-You are **VisuaRealm**, a clean, helpful, safe assistant.
-
-When replying, ALWAYS use:
-
+You are **VisuaRealm**, a clean, intelligent assistant that responds with:
 ## 💬 Main Response
 ## 🧩 Summary
 ## 🚀 Next Steps
-
-Keep responses factual, useful, and non-hallucinatory.
-If given an image, analyze it accurately.
+No unnecessary filler. No hallucination.
+Keep output extremely clear, helpful, and structured.
         `.trim(),
       },
       ...messages,
@@ -86,64 +133,23 @@ If given an image, analyze it accurately.
     ],
   });
 
-  const reply =
-    completion.choices?.[0]?.message?.content?.trim() || "⚠️ No response.";
+  const mainReply =
+    completion.choices?.[0]?.message?.content?.trim() ||
+    "⚠️ No response.";
 
-  // Create summary (fixed role)
   const summaryCompletion = await client.chat.completions.create({
     model: "gpt-4o-mini",
-    temperature: 0.3,
-    max_tokens: 200,
+    temperature: 0.4,
+    max_tokens: 150,
     messages: [
-      {
-        role: "system",
-        content: "Summarize the assistant’s reply in one short paragraph.",
-      },
-      { role: "user", content: reply },
+      { role: "system", content: "Summarize the assistant's reply." },
+      { role: "user", content: mainReply },
     ],
   });
 
   const summary =
     summaryCompletion.choices?.[0]?.message?.content?.trim() ||
-    "⚠️ No summary.";
+    "No summary.";
 
-  return json(formatWithContext(context, reply, summary));
-}
-
-/* ------------------ Helpers ------------------ */
-
-function detectContext(text = "") {
-  if (/(react|js|code|python|api|unreal|ue5|function)/.test(text))
-    return "🧠 Programming & Tech";
-  if (/(business|startup|money|product|user|marketing)/.test(text))
-    return "💼 Business & Strategy";
-  if (/(design|image|art|logo|visual)/.test(text))
-    return "🎨 Design & Visual";
-  if (/(music|guitar|lyrics|song|album)/.test(text))
-    return "🎵 Music & Creativity";
-  if (/(life|mindset|study|growth)/.test(text))
-    return "🌱 Learning & Self-Improvement";
-  return "💬 General";
-}
-
-function detectMode(text = "") {
-  text = text.toLowerCase();
-  if (text.includes("code") || text.includes("fix") || text.includes("build"))
-    return "⚙️ Code Mode";
-  if (text.includes("learn") || text.includes("explain") || text.includes("teach"))
-    return "🧠 Learn Mode";
-  if (text.includes("idea") || text.includes("plan") || text.includes("insight"))
-    return "🎯 Insight Mode";
-  return "🧠 Learn Mode";
-}
-
-function formatWithContext(context, reply, summary) {
-  return `> **${context}**\n\n${reply}\n\n---\n\n📘 **Quick Recap:** ${summary}`;
-}
-
-function json(reply, status = 200) {
-  return new Response(JSON.stringify({ reply }), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
+  return json(formatReply(context, mainReply, summary));
 }
