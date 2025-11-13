@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, FormEvent } from "react";
 import { motion } from "framer-motion";
 
 interface Note {
@@ -11,7 +11,7 @@ interface Note {
   favorite: boolean;
   done: boolean;
   updated: number;
-  folderId?: string; // new: basic folder support
+  folderId?: string; // basic folder support
 }
 
 interface Folder {
@@ -27,16 +27,28 @@ const LEGACY_STORAGE_KEY = "vr_notepad";
 // system / virtual folders (not stored in folders[])
 type SystemFolderId = "all" | "favorites" | "pinned" | "done" | "inbox";
 
+type AiMode = "free" | "improve" | "summarize" | "tasks" | "rewrite";
+
 export default function NotepadPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
-  const [activeFolderId, setActiveFolderId] = useState<SystemFolderId | string>("all");
+  const [activeFolderId, setActiveFolderId] = useState<SystemFolderId | string>(
+    "all"
+  );
 
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<"updated-desc" | "updated-asc" | "title">(
     "updated-desc"
   );
   const [activeNote, setActiveNote] = useState<number | null>(null);
+
+  // --- AI dock state ---
+  const [aiInput, setAiInput] = useState("");
+  const [aiMode, setAiMode] = useState<AiMode>("free");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiFile, setAiFile] = useState<File | null>(null);
+  const [aiFilePreviewUrl, setAiFilePreviewUrl] = useState<string | null>(null);
+  const aiInputRef = useRef<HTMLInputElement | null>(null);
 
   // ---- LOAD FROM LOCALSTORAGE (v2 + legacy) ----
   useEffect(() => {
@@ -84,6 +96,17 @@ export default function NotepadPage() {
     const payload = JSON.stringify({ notes, folders });
     localStorage.setItem(STORAGE_KEY_V2, payload);
   }, [notes, folders]);
+
+  // ---- FILE PREVIEW FOR AI DOCK ----
+  useEffect(() => {
+    if (!aiFile) {
+      setAiFilePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(aiFile);
+    setAiFilePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [aiFile]);
 
   function getDefaultFolders(): Folder[] {
     return [
@@ -171,7 +194,9 @@ export default function NotepadPage() {
   }
 
   function addFolder() {
-    const name = window.prompt("Folder name (you can start with an emoji, e.g. 🔬 Lab)");
+    const name = window.prompt(
+      "Folder name (you can start with an emoji, e.g. 🔬 Lab)"
+    );
     if (!name) return;
 
     // very simple emoji guess (first char)
@@ -230,10 +255,159 @@ export default function NotepadPage() {
 
   const active = notes.find((n) => n.id === activeNote) || null;
 
-  return (
-    <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black text-gray-100 px-4 py-4 pb-24">
-      <div className="mx-auto flex max-w-5xl gap-4">
+  // ---- AI DOCK LOGIC ----
 
+  function setModeAndFocus(mode: AiMode) {
+    setAiMode(mode);
+    // gently hint in the placeholder by setting a template prompt if input is empty
+    if (!aiInput.trim()) {
+      if (mode === "improve")
+        setAiInput("Polish this note, keep my voice but make it tighter.");
+      if (mode === "summarize")
+        setAiInput("Summarize this note into 3–5 bullet points.");
+      if (mode === "tasks")
+        setAiInput("Extract clear action items with checkboxes.");
+      if (mode === "rewrite")
+        setAiInput("Rewrite this in a more professional, concise tone.");
+    }
+    // focus the input
+    setTimeout(() => aiInputRef.current?.focus(), 10);
+  }
+
+  async function handleAiSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (aiLoading) return;
+
+    const trimmed = aiInput.trim();
+    if (!active && !trimmed && !aiFile) {
+      return; // nothing to do
+    }
+
+    setAiLoading(true);
+
+    const baseNoteText = active
+      ? `Current note title:\n${active.title || "(untitled)"}\n\nCurrent note content:\n${active.content || "(empty)"}`
+      : "(no active note selected)";
+
+    const modeInstruction =
+      aiMode === "improve"
+        ? "Improve and rewrite this note. Keep key ideas, tighten the writing, keep it human, no unnecessary fluff."
+        : aiMode === "summarize"
+        ? "Summarize this note into concise bullet points. Keep it scannable and useful."
+        : aiMode === "tasks"
+        ? "Extract a clear list of tasks / todos from this note. Use bullet points, optionally with checkboxes."
+        : aiMode === "rewrite"
+        ? "Rewrite this note in a clearer, more professional tone while preserving meaning."
+        : "Use the user request to help with this note however is most useful.";
+
+    const userRequest = trimmed || "(no extra instructions from user).";
+
+    const prompt = `
+You are the AI workspace for VisuaRealm Notepad.
+
+Mode: ${aiMode.toUpperCase()}
+
+Guidelines:
+- Always respond with just the content that should go back into the note (no meta commentary).
+- Preserve important details, structure, and any numbered lists.
+- Do NOT add disclaimers or 'as an AI' language.
+
+Mode Instruction:
+${modeInstruction}
+
+User extra request:
+${userRequest}
+
+Note context:
+${baseNoteText}
+`.trim();
+
+    try {
+      const messagesPayload = [{ role: "user", content: prompt }];
+
+      let reply = "";
+
+      if (aiFile) {
+        // mirror the chat page style: multipart when file is present
+        const formData = new FormData();
+        formData.append("messages", JSON.stringify(messagesPayload));
+        formData.append("file", aiFile);
+
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        reply = data.reply || "";
+      } else {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: messagesPayload }),
+        });
+        const data = await res.json();
+        reply = data.reply || "";
+      }
+
+      if (!reply) return;
+
+      if (active) {
+        // apply different merge behavior by mode
+        if (aiMode === "improve" || aiMode === "rewrite") {
+          updateNote(active.id, { content: reply });
+        } else if (aiMode === "summarize") {
+          updateNote(active.id, {
+            content:
+              active.content +
+              "\n\n---\n\nAI Summary:\n" +
+              reply.trim(),
+          });
+        } else if (aiMode === "tasks") {
+          updateNote(active.id, {
+            content:
+              active.content +
+              "\n\n---\n\nAI Tasks:\n" +
+              reply.trim(),
+          });
+        } else {
+          // free: just append below
+          updateNote(active.id, {
+            content:
+              active.content +
+              "\n\n---\n\nAI Output:\n" +
+              reply.trim(),
+          });
+        }
+      } else {
+        // if no active note, create a new one out of the reply
+        const id = Date.now();
+        const newNote: Note = {
+          id,
+          title: "AI Note",
+          content: reply.trim(),
+          pinned: false,
+          favorite: false,
+          done: false,
+          updated: Date.now(),
+          folderId: "inbox",
+        };
+        setNotes((prev) => [newNote, ...prev]);
+        setActiveNote(id);
+      }
+    } catch (err) {
+      console.error(err);
+      // optional: toast or alert could be wired later
+    } finally {
+      setAiLoading(false);
+      // keep note, but clear transient stuff
+      setAiInput("");
+      setAiFile(null);
+    }
+  }
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black text-gray-100 px-4 py-4 pb-28">
+      <div className="mx-auto flex max-w-5xl gap-4">
         {/* SIDEBAR — FOLDER TREE */}
         <aside className="hidden w-60 shrink-0 flex-col rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3 shadow-[0_0_30px_rgba(15,23,42,0.9)] md:flex">
           <header className="mb-2 flex items-center justify-between">
@@ -251,7 +425,7 @@ export default function NotepadPage() {
             </button>
           </header>
 
-          <div className="h-px w-full bg-gradient-to-r from-transparent via-neutral-700 to-transparent mb-2" />
+          <div className="mb-2 h-px w-full bg-gradient-to-r from-transparent via-neutral-700 to-transparent" />
 
           {/* Quick Views */}
           <nav className="mb-3 space-y-1 text-sm">
@@ -281,7 +455,7 @@ export default function NotepadPage() {
             />
           </nav>
 
-          <p className="mt-1 mb-1 text-[11px] uppercase tracking-[0.18em] text-gray-500">
+          <p className="mb-1 mt-1 text-[11px] uppercase tracking-[0.18em] text-gray-500">
             Folders
           </p>
 
@@ -308,7 +482,7 @@ export default function NotepadPage() {
 
         {/* MAIN COLUMN */}
         <section className="flex-1 space-y-3">
-          {/* TOP BAR (Mobile + Title) */}
+          {/* TOP BAR (Title) */}
           <div className="flex items-center justify-between gap-2 md:justify-between">
             <div>
               <h1 className="text-lg font-semibold tracking-wide">
@@ -377,7 +551,9 @@ export default function NotepadPage() {
             <select
               value={sort}
               onChange={(e) =>
-                setSort(e.target.value as "updated-desc" | "updated-asc" | "title")
+                setSort(
+                  e.target.value as "updated-desc" | "updated-asc" | "title"
+                )
               }
               className="w-full rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none focus:border-blue-500 md:w-44"
             >
@@ -390,7 +566,7 @@ export default function NotepadPage() {
           {/* LAYOUT: LIST + EDITOR */}
           <div className="flex flex-col gap-3 md:flex-row">
             {/* Notes List */}
-            <div className="md:w-[45%] space-y-2">
+            <div className="space-y-2 md:w-[45%]">
               <button
                 onClick={addNote}
                 className="hidden w-full rounded-xl border border-dashed border-neutral-700 bg-neutral-900/70 px-3 py-2 text-xs font-semibold text-gray-200 hover:border-blue-500 hover:text-white md:block"
@@ -443,8 +619,9 @@ export default function NotepadPage() {
                         })}
                       </span>
                       <span className="opacity-70">
-                        {folders.find((f) => f.id === (note.folderId || "inbox"))
-                          ?.emoji || "📁"}
+                        {folders.find(
+                          (f) => f.id === (note.folderId || "inbox")
+                        )?.emoji || "📁"}
                       </span>
                     </div>
                   </motion.div>
@@ -456,12 +633,13 @@ export default function NotepadPage() {
             <div className="md:w-[55%]">
               {!active && (
                 <div className="mt-3 flex h-full min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/70 px-4 py-6 text-center text-xs text-gray-400">
-                  Select a note on the left, or create a new one to start writing.
+                  Select a note on the left, or create a new one to start
+                  writing.
                 </div>
               )}
 
               {active && (
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-3 shadow-[0_0_25px_rgba(15,23,42,0.95)] space-y-3">
+                <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-3 shadow-[0_0_25px_rgba(15,23,42,0.95)]">
                   <div className="flex items-center justify-between gap-2">
                     <input
                       value={active.title}
@@ -498,7 +676,7 @@ export default function NotepadPage() {
                   />
 
                   {/* Toggles */}
-                  <div className="flex flex-wrap gap-2 text-[11px] pt-1">
+                  <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
                     <ToggleButton
                       active={active.pinned}
                       onClick={() =>
@@ -548,6 +726,126 @@ export default function NotepadPage() {
           </div>
         </section>
       </div>
+
+      {/* FIXED AI DOCK — MATCH CHAT BOTTOM BAR */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 border-t border-neutral-700 
+                   bg-[#0d0d16]/90 backdrop-blur-xl 
+                   shadow-[0_-8px_30px_rgba(0,0,0,0.85)]"
+      >
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3">
+          {/* AI Modes Row */}
+          <div className="flex flex-wrap gap-2 text-[11px]">
+            <button
+              onClick={() => setModeAndFocus("free")}
+              className={`rounded-full border px-3 py-1 ${
+                aiMode === "free"
+                  ? "border-blue-500 bg-blue-600/20 text-blue-100"
+                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
+              }`}
+            >
+              🧠 Ask AI (free)
+            </button>
+            <button
+              onClick={() => setModeAndFocus("improve")}
+              className={`rounded-full border px-3 py-1 ${
+                aiMode === "improve"
+                  ? "border-emerald-500 bg-emerald-600/20 text-emerald-100"
+                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
+              }`}
+            >
+              ✨ Improve Note
+            </button>
+            <button
+              onClick={() => setModeAndFocus("summarize")}
+              className={`rounded-full border px-3 py-1 ${
+                aiMode === "summarize"
+                  ? "border-cyan-500 bg-cyan-600/20 text-cyan-100"
+                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
+              }`}
+            >
+              🧾 Summarize
+            </button>
+            <button
+              onClick={() => setModeAndFocus("tasks")}
+              className={`rounded-full border px-3 py-1 ${
+                aiMode === "tasks"
+                  ? "border-amber-500 bg-amber-500/20 text-amber-100"
+                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
+              }`}
+            >
+              ✅ Extract Tasks
+            </button>
+            <button
+              onClick={() => setModeAndFocus("rewrite")}
+              className={`rounded-full border px-3 py-1 ${
+                aiMode === "rewrite"
+                  ? "border-purple-500 bg-purple-600/20 text-purple-100"
+                  : "border-neutral-700 bg-neutral-900/80 text-gray-300"
+              }`}
+            >
+              🎨 Rewrite Style
+            </button>
+          </div>
+
+          {/* File preview */}
+          {aiFile && aiFilePreviewUrl && (
+            <div className="flex items-center gap-3 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1">
+              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded border border-neutral-800 text-[11px] text-gray-300">
+                {/* just show generic preview; images will render as image */}
+                {aiFile.type.startsWith("image/") ? (
+                  <img
+                    src={aiFilePreviewUrl}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span>📎</span>
+                )}
+              </div>
+              <span className="flex-1 truncate text-xs text-gray-200">
+                {aiFile.name}
+              </span>
+              <button
+                className="text-xs text-red-400"
+                onClick={() => setAiFile(null)}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Input row */}
+          <form
+            onSubmit={handleAiSubmit}
+            className="flex items-center gap-2 text-xs"
+          >
+            <input
+              type="file"
+              onChange={(e) => setAiFile(e.target.files?.[0] || null)}
+              className="max-w-[150px] cursor-pointer text-[11px] file:mr-2 file:rounded-full file:border-0 file:bg-neutral-800 file:px-2 file:py-1 file:text-[11px] file:text-gray-200"
+            />
+
+            <input
+              ref={aiInputRef}
+              value={aiInput}
+              onChange={(e) => setAiInput(e.target.value)}
+              className="flex-1 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-500 focus:border-blue-500"
+              placeholder={
+                active
+                  ? "Ask AI to clean this note, summarize it, extract tasks, or anything..."
+                  : "No note selected — ask AI to draft something new..."
+              }
+            />
+
+            <button
+              disabled={aiLoading}
+              className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+            >
+              {aiLoading ? "Thinking..." : "Send"}
+            </button>
+          </form>
+        </div>
+      </div>
     </main>
   );
 }
@@ -570,8 +868,8 @@ function SidebarItem({
       onClick={onClick}
       className={`flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-[13px] transition ${
         active
-          ? "bg-blue-600/20 text-blue-100 border border-blue-500/70 shadow-[0_0_14px_rgba(37,99,235,0.4)]"
-          : "text-gray-300 hover:bg-neutral-900/90 hover:text-white border border-transparent"
+          ? "border border-blue-500/70 bg-blue-600/20 text-blue-100 shadow-[0_0_14px_rgba(37,99,235,0.4)]"
+          : "border border-transparent text-gray-300 hover:bg-neutral-900/90 hover:text-white"
       }`}
     >
       <span className="text-base">{emoji}</span>
@@ -620,11 +918,11 @@ function ToggleButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 rounded-full border px-3 py-1 ${
+      className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] ${
         active
           ? "border-emerald-500 bg-emerald-600/20 text-emerald-100"
           : "border-neutral-700 bg-neutral-900/90 text-gray-300"
-      } text-[11px]`}
+      }`}
     >
       <span>{emoji}</span>
       <span>{label}</span>
