@@ -22,6 +22,7 @@ interface Note {
 }
 
 export default function ChatPage() {
+  // --- STATE ---
   const [user, setUser] = useState<any>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -40,20 +41,17 @@ export default function ChatPage() {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
-  // 🔄 copy state
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-
-  // ✏️ input ref (for suggestion chips)
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Supabase auth
+  // --- AUTH ---
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data?.user || null);
     });
   }, []);
 
-  // Load notes
+  // --- LOAD NOTES ---
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -70,19 +68,17 @@ export default function ChatPage() {
           );
         }
       }
-    } catch {
-      // ignore bad localStorage
-    }
+    } catch {}
   }, []);
 
-  // Save notes
+  // --- SAVE NOTES ---
   useEffect(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem("visuarealm_notes", JSON.stringify(notes));
     localStorage.setItem("visuarealm_active_note", String(activeNote));
   }, [notes, activeNote]);
 
-  // File preview
+  // --- FILE PREVIEW ---
   useEffect(() => {
     if (!file) return setFilePreviewUrl(null);
     const url = URL.createObjectURL(file);
@@ -90,12 +86,12 @@ export default function ChatPage() {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  // Auto scroll on new messages
+  // --- AUTO SCROLL ---
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Scroll detection
+  // --- SEE IF USER SCROLLED UP ---
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
@@ -109,7 +105,7 @@ export default function ChatPage() {
     return () => el.removeEventListener("scroll", handleScroll);
   }, [messages.length]);
 
-  // ESC closes notes
+  // --- ESC CLOSE NOTES ---
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (e.key === "Escape") setShowNotes(false);
@@ -223,7 +219,6 @@ export default function ChatPage() {
     }
   }
 
-  // Improve note
   async function handleSmartImprove() {
     const note = notes.find((n) => n.id === activeNote);
     if (!note?.content.trim()) return alert("Note is empty.");
@@ -263,13 +258,11 @@ ${note.content}
     }
   }
 
-  // 🔄 Copy feature for assistant messages
   async function handleCopy(content: string, index: number) {
     try {
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(content);
       } else {
-        // fallback
         const textarea = document.createElement("textarea");
         textarea.value = content;
         textarea.style.position = "fixed";
@@ -281,12 +274,9 @@ ${note.content}
       }
       setCopiedIndex(index);
       setTimeout(() => setCopiedIndex(null), 1500);
-    } catch {
-      // ignore errors silently
-    }
+    } catch {}
   }
 
-  // 💡 suggestion chip click
   function handleSuggestionClick(text: string) {
     setInput(text);
     inputRef.current?.focus();
@@ -307,28 +297,29 @@ ${note.content}
     },
   };
 
+  // --------------------------
+  // UI REBUILD — FIXED LAYOUT
+  // --------------------------
+
   return (
-    <main className="flex min-h-screen flex-col bg-gradient-to-b from-[#050510] via-[#050308] to-black text-gray-100">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur">
+    <main className="flex flex-col h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black text-gray-100">
+
+      {/* HEADER */}
+      <header className="shrink-0 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+
+          {/* Logo */}
           <div className="flex items-center gap-3">
-            {/* Tiny VR orb logo */}
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-400 via-blue-500 to-purple-600 shadow-[0_0_18px_rgba(56,189,248,0.7)]">
-              <span className="text-xs font-bold tracking-[0.12em]">
-                VR
-              </span>
+              <span className="text-xs font-bold tracking-[0.12em]">VR</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-semibold tracking-wide">
-                VisuaRealm Studio
-              </span>
-              <span className="text-[11px] text-gray-400">
-                Chat • Notes • Build Anything
-              </span>
+              <span className="text-sm font-semibold tracking-wide">VisuaRealm Studio</span>
+              <span className="text-[11px] text-gray-400">Chat • Notes • Build Anything</span>
             </div>
           </div>
 
+          {/* Auth */}
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowNotes((v) => !v)}
@@ -340,8 +331,7 @@ ${note.content}
             {user ? (
               <>
                 <span className="hidden text-[11px] text-gray-400 sm:inline">
-                  Signed in as{" "}
-                  <b className="text-gray-200">{user.email}</b>
+                  Signed in as <b className="text-gray-200">{user.email}</b>
                 </span>
                 <button
                   onClick={async () => {
@@ -362,22 +352,21 @@ ${note.content}
               </button>
             )}
           </div>
+
         </div>
       </header>
 
-      {/* Top notes panel */}
+      {/* NOTES PANEL */}
       {showNotes && (
-        <section className="border-b border-neutral-800 bg-neutral-950/90">
+        <section className="shrink-0 border-b border-neutral-800 bg-neutral-950/90">
           <div className="mx-auto max-w-5xl px-4 py-3">
+
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold tracking-wide">
-                  Quick Notes
-                </h2>
-                <p className="text-[11px] text-gray-400">
-                  Capture ideas while you chat. Saved locally in this browser.
-                </p>
+                <h2 className="text-sm font-semibold tracking-wide">Quick Notes</h2>
+                <p className="text-[11px] text-gray-400">Saved locally in this browser.</p>
               </div>
+
               <button
                 onClick={addNote}
                 className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-500"
@@ -412,9 +401,7 @@ ${note.content}
                     onChange={(e) =>
                       setNotes((prev) =>
                         prev.map((n) =>
-                          n.id === note.id
-                            ? { ...n, title: e.target.value }
-                            : n
+                          n.id === note.id ? { ...n, title: e.target.value } : n
                         )
                       )
                     }
@@ -435,18 +422,20 @@ ${note.content}
                     }
                     rows={3}
                     className="w-full resize-none bg-transparent text-xs text-gray-200 outline-none placeholder:text-gray-500"
-                    placeholder="Type your note here..."
+                    placeholder="Type your note..."
                   />
                 </div>
               ))}
             </div>
+
           </div>
         </section>
       )}
 
-      {/* Chat area */}
-      <section className="flex flex-1 justify-center pb-[150px]">
-        <div className="flex w-full max-w-5xl flex-col px-4 pt-4">
+      {/* CHAT + SCROLL AREA */}
+      <section className="flex-1 flex justify-center overflow-hidden">
+        <div className="flex w-full max-w-5xl flex-col px-4 pt-4 overflow-hidden">
+
           <div
             ref={scrollContainerRef}
             className="flex-1 space-y-5 overflow-y-auto rounded-2xl border border-neutral-800 bg-neutral-950/70 px-3 py-4 shadow-[0_0_40px_rgba(15,23,42,0.85)]"
@@ -456,14 +445,11 @@ ${note.content}
                 <p className="mb-1 text-gray-200">
                   Welcome to <span className="font-semibold">VisuaRealm</span>
                 </p>
-                <p>
-                  Ask for code, articles, marketing copy, UI ideas, app
-                  blueprints — anything. Your notes above stay tied to this
-                  workspace.
-                </p>
+                <p>Ask for code, articles, design, explanations — anything.</p>
               </div>
             )}
 
+            {/* CHAT MESSAGES */}
             {messages.map((msg, i) => {
               const isUser = msg.role === "user";
 
@@ -473,9 +459,7 @@ ${note.content}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className={`flex w-full ${
-                    isUser ? "justify-end" : "justify-start"
-                  }`}
+                  className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
                 >
                   <div
                     className={`relative flex max-w-[88%] gap-2 text-sm ${
@@ -495,6 +479,7 @@ ${note.content}
                       )}
                     </div>
 
+                    {/* Bubble */}
                     <div
                       className={`group relative w-full rounded-2xl border px-4 py-3 shadow-md ${
                         isUser
@@ -504,7 +489,6 @@ ${note.content}
                           : "border-neutral-800 bg-neutral-900 text-gray-200"
                       }`}
                     >
-                      {/* Tiny role label */}
                       <p
                         className={`mb-1 text-[10px] uppercase tracking-wider ${
                           isUser ? "text-gray-200 text-right" : "text-blue-400"
@@ -513,7 +497,7 @@ ${note.content}
                         {isUser ? "You" : "VisuaRealm AI"}
                       </p>
 
-                      {/* Copy button for assistant */}
+                      {/* Copy button */}
                       {!isUser && (
                         <button
                           type="button"
@@ -538,7 +522,7 @@ ${note.content}
                         />
                       )}
 
-                      {/* Assistant suggestion chips */}
+                      {/* Suggestions */}
                       {!isUser && (
                         <div className="mt-4 flex flex-wrap gap-2">
                           {[
@@ -550,9 +534,7 @@ ${note.content}
                             <button
                               key={suggestion}
                               type="button"
-                              onClick={() =>
-                                handleSuggestionClick(suggestion)
-                              }
+                              onClick={() => handleSuggestionClick(suggestion)}
                               className="rounded-full border border-neutral-700 bg-neutral-900/90 px-2 py-1 text-[11px] text-gray-200 hover:border-blue-500 hover:text-white"
                             >
                               {suggestion}
@@ -561,7 +543,6 @@ ${note.content}
                         </div>
                       )}
 
-                      {/* Timestamp */}
                       <p className="mt-3 text-[10px] text-gray-500 text-right">
                         {new Date().toLocaleTimeString([], {
                           hour: "2-digit",
@@ -573,12 +554,14 @@ ${note.content}
                 </motion.div>
               );
             })}
+
             <div ref={chatEndRef} />
           </div>
+
         </div>
       </section>
 
-      {/* Scroll to bottom */}
+      {/* SCROLL TO BOTTOM */}
       {showScrollToBottom && (
         <button
           onClick={() =>
@@ -593,7 +576,7 @@ ${note.content}
         </button>
       )}
 
-      {/* Smart Improve */}
+      {/* SMART IMPROVE */}
       {showNotes && (
         <button
           onClick={handleSmartImprove}
@@ -604,7 +587,7 @@ ${note.content}
         </button>
       )}
 
-      {/* Global loading indicator */}
+      {/* LOADING INDICATOR */}
       {loading && (
         <div className="fixed bottom-[150px] left-1/2 z-50 -translate-x-1/2 rounded-full border border-neutral-700 bg-neutral-950/95 px-4 py-2 text-xs text-gray-300 shadow-xl flex items-center gap-2">
           <div className="flex gap-1">
@@ -617,8 +600,9 @@ ${note.content}
       )}
 
       {/* FIXED CHAT BAR */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-neutral-800 bg-neutral-950/95 backdrop-blur">
+      <div className="shrink-0 fixed bottom-0 left-0 right-0 z-50 border-t border-neutral-800 bg-neutral-950/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3">
+
           {file && filePreviewUrl && (
             <div className="flex items-center gap-3 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1">
               <img
@@ -637,10 +621,7 @@ ${note.content}
             </div>
           )}
 
-          <form
-            onSubmit={sendMessage}
-            className="flex items-center gap-2 text-xs"
-          >
+          <form onSubmit={sendMessage} className="flex items-center gap-2 text-xs">
             <input
               type="file"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
@@ -662,8 +643,10 @@ ${note.content}
               {loading ? "Sending..." : "Send"}
             </button>
           </form>
+
         </div>
       </div>
+
     </main>
   );
 }
