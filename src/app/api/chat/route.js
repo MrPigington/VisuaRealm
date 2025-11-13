@@ -9,13 +9,13 @@ export async function POST(req) {
   try {
     const type = req.headers.get("content-type") || "";
 
-    // 🧠 Handle JSON (text only)
+    // 🧠 Handle JSON (Smart Improve + normal chat)
     if (type.includes("application/json")) {
       const { messages } = await req.json();
-      return await handleUniversal(messages);
+      return await handleUniversal(messages, null, true); // ✅ Allow long Smart Improve
     }
 
-    // 🖼 Handle multipart (text + image)
+    // 🖼 Handle multipart (chat + image)
     if (type.includes("multipart/form-data")) {
       const form = await req.formData();
       const messages = JSON.parse(form.get("messages") || "[]");
@@ -43,7 +43,7 @@ export async function POST(req) {
 
 /* ------------------ Core Logic ------------------ */
 
-async function handleUniversal(messages = [], image = null) {
+async function handleUniversal(messages = [], image = null, allowLong = false) {
   const last = messages.at(-1)?.content?.toLowerCase() || "";
   const context = detectContext(last);
   const mode = detectMode(last);
@@ -53,43 +53,41 @@ async function handleUniversal(messages = [], image = null) {
         {
           role: "user",
           content: [
-            { type: "text", text: `Analyze this image and help with: ${last}` },
+            { type: "text", text: `Analyze this image and assist with: ${last}` },
             { type: "image_url", image_url: { url: image } },
           ],
         },
       ]
     : [];
 
-  // 🔹 Main response
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0.8,
-    max_tokens: 1400,
+    max_tokens: allowLong ? 4000 : 1500, // ✅ Bigger for Smart Improve
     messages: [
       {
         role: "system",
         content: `
-You are VisuaRealm — a friendly, intelligent mentor that helps users learn and build anything.
+You are **VisuaRealm**, an adaptive AI assistant that helps users with code, writing, design, and reasoning.
 
-Current Mode: ${mode}
-Context: ${context}
+If the user gives a note or text block:
+- Rewrite or improve it contextually using concise Markdown.
+- Preserve formatting, meaning, and intent — never hallucinate unrelated topics.
 
-Always respond in this format, even if it's code, design, or advice:
+If the user is chatting normally:
+- Follow your standard assistant format with sections.
 
+Modes:
+${mode}
+
+Context:
+${context}
+
+When improving text, output **only** the improved text (no explanation).
+When chatting, use this structure:
 ## 💬 Main Response
-(Detailed, visual or code-rich explanation using Markdown and code fences.)
-
 ## 🧩 Summary
-(Brief recap of the most important points in bullet form.)
-
 ## 🚀 Next Steps
-(Encouraging, practical guidance on what to try, learn, or improve next.)
-
-Tone:
-- Be supportive, clear, and conversational — never robotic.
-- Explain WHY something works, not just WHAT it does.
-- For code: include syntax-highlighted examples and reasoning.
-- For design or life questions: end with insight or motivation.
         `.trim(),
       },
       ...messages,
@@ -99,7 +97,10 @@ Tone:
 
   const reply = completion.choices?.[0]?.message?.content?.trim() || "⚠️ No response.";
 
-  // 🔹 Auto summary generation
+  // 🧠 Skip summary for Smart Improve (already long-form)
+  if (allowLong) return json(reply);
+
+  // 🧩 Otherwise summarize
   const summaryCompletion = await client.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0.4,
@@ -107,7 +108,7 @@ Tone:
     messages: [
       {
         role: "system",
-        content: "Summarize the most recent assistant response into one clear and short paragraph.",
+        content: "Summarize the most recent assistant response in one clear, short paragraph.",
       },
       { role: "assistant", content: reply },
     ],

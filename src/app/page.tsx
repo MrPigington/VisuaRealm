@@ -34,7 +34,9 @@ export default function ChatPage() {
   ]);
   const [activeNote, setActiveNote] = useState(1);
   const [showNotes, setShowNotes] = useState(true);
+  const [improving, setImproving] = useState(false);
 
+  // 🔐 check user
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -43,6 +45,7 @@ export default function ChatPage() {
     checkUser();
   }, []);
 
+  // 🔄 auto-scroll
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -69,6 +72,7 @@ export default function ChatPage() {
     setActiveNote(newNote.id);
   }
 
+  // 🧠 Parse response
   function splitResponse(content: string) {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
     if (normalized.includes("```") || normalized.includes("{"))
@@ -85,10 +89,10 @@ export default function ChatPage() {
     return { main, recap, urls };
   }
 
+  // 💬 chat send
   async function sendMessage(e: FormEvent) {
     e.preventDefault();
     if (!input.trim() && !file) return;
-
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -134,6 +138,41 @@ export default function ChatPage() {
     }
   }
 
+  // 🪄 Smart Improve — uses active note + last 5 chat messages
+  async function handleSmartImprove() {
+    const note = notes.find((n) => n.id === activeNote);
+    if (!note || !note.content.trim()) return alert("Note is empty.");
+    setImproving(true);
+
+    const recentChat = messages.slice(-5).map((m) => `${m.role}: ${m.content}`).join("\n");
+    const contextPrompt = `
+Based on this recent chat context:
+${recentChat}
+
+Improve or expand this note intelligently, keeping style and context:
+${note.content}
+`;
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: contextPrompt }],
+        }),
+      });
+      const data = await res.json();
+      const reply = data.reply || "No response.";
+      setNotes((prev) =>
+        prev.map((n) => (n.id === activeNote ? { ...n, content: reply } : n))
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setImproving(false);
+    }
+  }
+
   const markdownComponents: Components = {
     code({ className, children }) {
       const match = /language-(\w+)/.exec(className || "");
@@ -150,7 +189,7 @@ export default function ChatPage() {
   };
 
   return (
-    <main className="flex flex-col min-h-screen bg-[#0d0d0d] text-gray-100 font-sans">
+    <main className="flex flex-col min-h-screen bg-[#0d0d0d] text-gray-100 font-sans relative">
       {/* 🔝 Header */}
       <header className="flex justify-between items-center bg-neutral-900/80 border-b border-neutral-800 px-6 py-3 sticky top-0 z-50">
         <div className="flex items-center gap-3">
@@ -180,7 +219,7 @@ export default function ChatPage() {
 
       {/* 🗒️ Notes Panel */}
       {showNotes && (
-        <section className="bg-neutral-900 border-b border-neutral-800 p-4">
+        <section className="bg-neutral-900 border-b border-neutral-800 p-4 max-h-[35vh] overflow-y-auto">
           <div className="flex justify-between items-center mb-3">
             <h2 className="font-semibold text-gray-300">Notes</h2>
             <button
@@ -224,7 +263,7 @@ export default function ChatPage() {
       )}
 
       {/* 💬 Chat Section */}
-      <section className="flex-1 flex flex-col items-center justify-between">
+      <section className="flex-1 flex flex-col items-center justify-between pb-[80px]">
         <div className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6">
           {messages.map((msg, i) => (
             <motion.div
@@ -242,7 +281,10 @@ export default function ChatPage() {
                     : "bg-neutral-900 border border-neutral-800 text-gray-200"
                 }`}
               >
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={markdownComponents}
+                >
                   {msg.content}
                 </ReactMarkdown>
                 {msg.fileUrl && (
@@ -289,6 +331,17 @@ export default function ChatPage() {
           </button>
         </form>
       </section>
+
+      {/* 🪄 Floating Smart Improve Button */}
+      {showNotes && (
+        <button
+          onClick={handleSmartImprove}
+          disabled={improving}
+          className="fixed bottom-20 right-6 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white px-4 py-2 rounded-full shadow-lg text-sm font-semibold disabled:opacity-70 z-50"
+        >
+          {improving ? "Improving..." : "✨ Smart Improve"}
+        </button>
+      )}
     </main>
   );
 }
