@@ -16,17 +16,19 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${inter.className} bg-[#0d0d0d] text-gray-100 min-h-screen pb-24 relative`}
+        className={`${inter.className} bg-[#0d0d0d] text-gray-100 min-h-screen relative`}
       >
-        {/* Main content area */}
-        <div className="flex flex-col min-h-screen">{children}</div>
+        {/* MAIN CONTENT — give it padding so bottom nav NEVER overlaps */}
+        <div className="min-h-screen pb-[110px]">
+          {children}
+        </div>
 
-        {/* 🔻 Persistent bottom navigation */}
+        {/* BOTTOM NAV */}
         <nav className="fixed bottom-0 left-0 right-0 bg-gradient-to-r from-purple-600 to-blue-600 flex justify-around items-center py-3 shadow-[0_-2px_12px_rgba(0,0,0,0.5)] border-t border-white/10 z-50">
           {[
-            { label: "Flow", path: "/" },            // 🆕 Renamed from Main
+            { label: "Flow", path: "/" },
             { label: "Chat", path: "/chat" },
-            { label: "Image Gen", path: "/image" },  // 🆕 New tab
+            { label: "Image Gen", path: "/image" },
             { label: "Whiteboard", path: "/whiteboard" },
             { label: "Notepad", path: "/notepad" },
           ].map((item, i) => (
