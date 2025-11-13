@@ -9,29 +9,27 @@ export async function POST(req) {
   try {
     const type = req.headers.get("content-type") || "";
 
-    // 🧠 JSON (Smart Improve or normal chat)
+    // 🧠 Normal JSON chat (no more Smart Improve)
     if (type.includes("application/json")) {
       const { messages } = await req.json();
-      return await handleUniversal(messages, null, true);
+      return await handleUniversal(messages);
     }
 
-    // 🖼 Multipart (chat + image)
+    // 🖼 Multipart: text + image
     if (type.includes("multipart/form-data")) {
       const form = await req.formData();
       const messages = JSON.parse(form.get("messages") || "[]");
       const file = form.get("file");
 
-      // No image → normal response
-      if (!(file instanceof File) || !file || file.size === 0) {
+      // ✅ FIXED: Vercel-compatible file detection
+      if (!file || typeof file.arrayBuffer !== "function") {
         return await handleUniversal(messages);
       }
 
-      // 🔥 FIXED IMAGE LOADING FOR VERCEL/WEB STREAMS
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const base64 = buffer.toString("base64");
+      // ✅ FIXED: arrayBuffer → base64 for GPT-4o Vision
+      const arrayBuf = await file.arrayBuffer();
+      const base64 = Buffer.from(new Uint8Array(arrayBuf)).toString("base64");
       const mime = file.type || "image/png";
-
       const dataUrl = `data:${mime};base64,${base64}`;
 
       return await handleUniversal(messages, dataUrl);
@@ -46,7 +44,7 @@ export async function POST(req) {
 
 /* ------------------ Core Logic ------------------ */
 
-async function handleUniversal(messages = [], image = null, allowLong = false) {
+async function handleUniversal(messages = [], image = null) {
   const last = messages.at(-1)?.content?.toLowerCase() || "";
   const context = detectContext(last);
   const mode = detectMode(last);
@@ -63,56 +61,22 @@ async function handleUniversal(messages = [], image = null, allowLong = false) {
       ]
     : [];
 
-  // ⚡ SUPER SMART IMPROVE: context amplification
-  const extendedContext =
-    allowLong && messages.length > 1
-      ? `
-RECENT CHAT CONTEXT:
-${messages
-  .slice(-8)
-  .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-  .join("\n")}
-
-INSTRUCTIONS FOR IMPROVEMENT:
-- Expand logically and meaningfully.
-- Correct errors without altering meaning.
-- Preserve voice/tone unless unclear.
-- Follow user's direction if implied.
-- Avoid adding unrelated info.
-- If the text is code, fix + optimize + explain internally.
-`
-      : "";
-
   const completion = await client.chat.completions.create({
     model: "gpt-4o-mini",
-    temperature: allowLong ? 0.4 : 0.8,
-    max_tokens: allowLong ? 6000 : 1600,
+    temperature: 0.8,
+    max_tokens: 1500,
     messages: [
       {
         role: "system",
         content: `
-You are **VisuaRealm**, an adaptive AI assistant helping users with code, writing, design, reasoning, and creative tasks.
+You are VisuaRealm — a clean, helpful AI assistant.
 
-If the request appears to be NOTE IMPROVEMENT or REWRITE:
-- Output ONLY the improved content. 
-- Do NOT add headers, sections, or commentary.
-- Keep user meaning exactly.
-- If content includes code, fix issues + optimize structure.
-- Stay in Markdown unless the user gave another format.
-
-If the request is normal chat:
-Use the structure:
+Respond in this structure:
 ## 💬 Main Response
 ## 🧩 Summary
 ## 🚀 Next Steps
 
-Modes:
-${mode}
-
-Context:
-${context}
-
-${extendedContext}
+Always be helpful, clear, and non-hallucinatory.
 `.trim(),
       },
       ...messages,
@@ -122,54 +86,39 @@ ${extendedContext}
 
   const reply = completion.choices?.[0]?.message?.content?.trim() || "⚠️ No response.";
 
-  // 🔥 Smart Improve returns ONLY improved content
-  if (allowLong) return json(reply);
-
-  // 🧩 Summary for normal chats
+  // Create summary
   const summaryCompletion = await client.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0.4,
-    max_tokens: 250,
+    max_tokens: 200,
     messages: [
-      {
-        role: "system",
-        content: "Summarize the assistant response in one short, clear paragraph.",
-      },
+      { role: "system", content: "Summarize the assistant’s last reply clearly." },
       { role: "assistant", content: reply },
     ],
   });
 
   const summary =
-    summaryCompletion.choices?.[0]?.message?.content?.trim() ??
-    "⚠️ No summary generated.";
+    summaryCompletion.choices?.[0]?.message?.content?.trim() || "⚠️ No summary.";
 
   return json(formatWithContext(context, reply, summary));
 }
 
-/* ------------------ Helper Functions ------------------ */
+/* ------------------ Helpers ------------------ */
 
 function detectContext(text = "") {
-  if (/(react|js|code|function|api|python|c\+\+|html|css|unreal|ue5)/.test(text))
-    return "🧠 Programming & Tech";
-  if (/(business|marketing|startup|money|product|app|user)/.test(text))
-    return "💼 Business & Strategy";
-  if (/(design|image|color|art|logo|visual)/.test(text))
-    return "🎨 Design & Visual";
-  if (/(music|guitar|lyrics|song|album|mix|audio)/.test(text))
-    return "🎵 Music & Creativity";
-  if (/(life|mindset|learning|study|growth|focus)/.test(text))
-    return "🌱 Learning & Self-Improvement";
+  if (/(react|js|code|python|api|unreal|ue5|function)/.test(text)) return "🧠 Programming & Tech";
+  if (/(business|startup|money|product|user|marketing)/.test(text)) return "💼 Business & Strategy";
+  if (/(design|image|art|logo|visual)/.test(text)) return "🎨 Design & Visual";
+  if (/(music|guitar|lyrics|song|album)/.test(text)) return "🎵 Music & Creativity";
+  if (/(life|mindset|study|growth)/.test(text)) return "🌱 Learning & Self-Improvement";
   return "💬 General";
 }
 
 function detectMode(text = "") {
   text = text.toLowerCase();
-  if (text.includes("code") || text.includes("build") || text.includes("fix"))
-    return "⚙️ Code Mode";
-  if (text.includes("learn") || text.includes("explain") || text.includes("teach"))
-    return "🧠 Learn Mode";
-  if (text.includes("idea") || text.includes("plan") || text.includes("insight"))
-    return "🎯 Insight Mode";
+  if (text.includes("code") || text.includes("fix") || text.includes("build")) return "⚙️ Code Mode";
+  if (text.includes("learn") || text.includes("explain") || text.includes("teach")) return "🧠 Learn Mode";
+  if (text.includes("idea") || text.includes("plan") || text.includes("insight")) return "🎯 Insight Mode";
   return "🧠 Learn Mode";
 }
 
