@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-// ✅ Prevent Next.js from trying to prerender this page
+// ✅ Fixes build crash (no more invalid revalidate)
 export const dynamic = "force-dynamic";
-export const revalidate = false;
+export const revalidate = 0; // ✅ must be number (not boolean)
 export const fetchCache = "force-no-store";
 
 export default function LoginPage() {
@@ -16,7 +16,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  // 🔐 Sign In
   async function handleSignIn() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -25,17 +24,13 @@ export default function LoginPage() {
     else router.push("/chat");
   }
 
-  // 🪪 Sign Up (no redirect until verified)
   async function handleSignUp() {
     setLoading(true);
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+    const { data, error } = await supabase.auth.signUp({ email, password });
     setLoading(false);
     if (error) alert(error.message);
     else if (!data.user?.email_confirmed_at)
-      alert("Account created — please check your email to verify before logging in.");
+      alert("✅ Account created! Check your email (if confirmations are enabled).");
   }
 
   return (
