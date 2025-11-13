@@ -43,6 +43,9 @@ export default function ChatPage() {
   // 🔄 copy state
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
+  // ✏️ input ref (for suggestion chips)
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   // Supabase auth
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -283,6 +286,12 @@ ${note.content}
     }
   }
 
+  // 💡 suggestion chip click
+  function handleSuggestionClick(text: string) {
+    setInput(text);
+    inputRef.current?.focus();
+  }
+
   const markdownComponents: Components = {
     code({ className, children }) {
       const match = /language-(\w+)/.exec(className || "");
@@ -387,7 +396,9 @@ ${note.content}
                   onChange={(e) =>
                     setNotes((prev) =>
                       prev.map((n) =>
-                        n.id === note.id ? { ...n, content: e.target.value } : n
+                        n.id === note.id
+                          ? { ...n, content: e.target.value }
+                          : n
                       )
                     )
                   }
@@ -406,49 +417,94 @@ ${note.content}
           ref={scrollContainerRef}
           className="w-full max-w-2xl flex-1 overflow-y-auto px-4 py-6 space-y-6"
         >
-          {messages.map((msg, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: i * 0.03 }}
-            >
-              <div
-                className={`max-w-[85%] p-4 rounded-2xl text-sm relative group ${
-                  msg.role === "user"
-                    ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
-                    : msg.type === "recap"
-                    ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white border border-blue-400"
-                    : "bg-neutral-900 text-gray-200 border border-neutral-800"
+          {messages.map((msg, i) => {
+            const isUser = msg.role === "user";
+
+            return (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, delay: i * 0.03 }}
+                className={`w-full flex ${
+                  isUser ? "justify-end" : "justify-start"
                 }`}
               >
-                {/* Copy button for assistant messages */}
-                {msg.role === "assistant" && (
-                  <button
-                    type="button"
-                    onClick={() => handleCopy(msg.content, i)}
-                    className="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full bg-neutral-800/80 border border-neutral-600 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    {copiedIndex === i ? "Copied" : "Copy"}
-                  </button>
-                )}
-
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm]}
-                  components={markdownComponents}
+                <div
+                  className={`max-w-[85%] p-4 rounded-2xl text-sm relative group shadow-md ${
+                    isUser
+                      ? "ml-auto bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                      : msg.type === "recap"
+                      ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white border border-blue-400"
+                      : "bg-neutral-900 text-gray-200 border border-neutral-800"
+                  }`}
                 >
-                  {msg.content}
-                </ReactMarkdown>
+                  {/* Tiny role label */}
+                  <p
+                    className={`mb-1 text-[10px] uppercase tracking-wider ${
+                      isUser ? "text-gray-200 text-right" : "text-blue-400"
+                    }`}
+                  >
+                    {isUser ? "You" : "VisuaRealm AI"}
+                  </p>
 
-                {msg.fileUrl && (
-                  <img
-                    src={msg.fileUrl}
-                    className="mt-2 max-w-full rounded border border-neutral-700"
-                  />
-                )}
-              </div>
-            </motion.div>
-          ))}
+                  {/* Copy button for assistant */}
+                  {!isUser && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(msg.content, i)}
+                      className="absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded-full bg-neutral-800/80 border border-neutral-600 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {copiedIndex === i ? "Copied" : "Copy"}
+                    </button>
+                  )}
+
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={markdownComponents}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+
+                  {msg.fileUrl && (
+                    <img
+                      src={msg.fileUrl}
+                      className="mt-2 max-w-full rounded border border-neutral-700"
+                    />
+                  )}
+
+                  {/* Assistant suggestion chips */}
+                  {!isUser && (
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {[
+                        "Explain this more",
+                        "Rewrite cleaner",
+                        "Give concrete examples",
+                        "Turn into code",
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => handleSuggestionClick(suggestion)}
+                          className="bg-neutral-800/80 border border-neutral-700 text-[11px] px-2 py-1 rounded-full hover:bg-neutral-700 transition"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Timestamp */}
+                  <p className="text-[10px] text-gray-500 mt-3 text-right">
+                    {new Date().toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                </div>
+              </motion.div>
+            );
+          })}
           <div ref={chatEndRef} />
         </div>
       </section>
@@ -518,6 +574,7 @@ ${note.content}
             />
 
             <input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               className="flex-1 bg-neutral-900 text-gray-100 p-2 rounded outline-none"
