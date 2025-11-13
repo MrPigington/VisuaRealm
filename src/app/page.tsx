@@ -303,19 +303,21 @@ ${note.content}
 
   return (
     <main className="flex flex-col h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black text-gray-100">
-
       {/* HEADER */}
       <header className="shrink-0 border-b border-neutral-800 bg-neutral-950/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-
           {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-400 via-blue-500 to-purple-600 shadow-[0_0_18px_rgba(56,189,248,0.7)]">
               <span className="text-xs font-bold tracking-[0.12em]">VR</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-semibold tracking-wide">VisuaRealm Studio</span>
-              <span className="text-[11px] text-gray-400">Chat • Notes • Build Anything</span>
+              <span className="text-sm font-semibold tracking-wide">
+                VisuaRealm Studio
+              </span>
+              <span className="text-[11px] text-gray-400">
+                Chat • Notes • Build Anything
+              </span>
             </div>
           </div>
 
@@ -331,7 +333,8 @@ ${note.content}
             {user ? (
               <>
                 <span className="hidden text-[11px] text-gray-400 sm:inline">
-                  Signed in as <b className="text-gray-200">{user.email}</b>
+                  Signed in as{" "}
+                  <b className="text-gray-200">{user.email}</b>
                 </span>
                 <button
                   onClick={async () => {
@@ -352,7 +355,6 @@ ${note.content}
               </button>
             )}
           </div>
-
         </div>
       </header>
 
@@ -360,11 +362,14 @@ ${note.content}
       {showNotes && (
         <section className="shrink-0 border-b border-neutral-800 bg-neutral-950/90">
           <div className="mx-auto max-w-5xl px-4 py-3">
-
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-semibold tracking-wide">Quick Notes</h2>
-                <p className="text-[11px] text-gray-400">Saved locally in this browser.</p>
+                <h2 className="text-sm font-semibold tracking-wide">
+                  Quick Notes
+                </h2>
+                <p className="text-[11px] text-gray-400">
+                  Saved locally in this browser.
+                </p>
               </div>
 
               <button
@@ -401,7 +406,9 @@ ${note.content}
                     onChange={(e) =>
                       setNotes((prev) =>
                         prev.map((n) =>
-                          n.id === note.id ? { ...n, title: e.target.value } : n
+                          n.id === note.id
+                            ? { ...n, title: e.target.value }
+                            : n
                         )
                       )
                     }
@@ -427,7 +434,6 @@ ${note.content}
                 </div>
               ))}
             </div>
-
           </div>
         </section>
       )}
@@ -435,7 +441,6 @@ ${note.content}
       {/* CHAT + SCROLL AREA */}
       <section className="flex-1 flex justify-center overflow-hidden">
         <div className="flex w-full max-w-5xl flex-col px-4 pt-4 overflow-hidden">
-
           <div
             ref={scrollContainerRef}
             className="flex-1 space-y-5 overflow-y-auto rounded-2xl border border-neutral-800 bg-neutral-950/70 px-3 py-4 shadow-[0_0_40px_rgba(15,23,42,0.85)]"
@@ -445,7 +450,9 @@ ${note.content}
                 <p className="mb-1 text-gray-200">
                   Welcome to <span className="font-semibold">VisuaRealm</span>
                 </p>
-                <p>Ask for code, articles, design, explanations — anything.</p>
+                <p>
+                  Ask for code, articles, design, explanations — anything.
+                </p>
               </div>
             )}
 
@@ -459,7 +466,9 @@ ${note.content}
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
+                  className={`flex w-full ${
+                    isUser ? "justify-end" : "justify-start"
+                  }`}
                 >
                   <div
                     className={`relative flex max-w-[88%] gap-2 text-sm ${
@@ -491,7 +500,9 @@ ${note.content}
                     >
                       <p
                         className={`mb-1 text-[10px] uppercase tracking-wider ${
-                          isUser ? "text-gray-200 text-right" : "text-blue-400"
+                          isUser
+                            ? "text-gray-200 text-right"
+                            : "text-blue-400"
                         }`}
                       >
                         {isUser ? "You" : "VisuaRealm AI"}
@@ -534,7 +545,9 @@ ${note.content}
                             <button
                               key={suggestion}
                               type="button"
-                              onClick={() => handleSuggestionClick(suggestion)}
+                              onClick={() =>
+                                handleSuggestionClick(suggestion)
+                              }
                               className="rounded-full border border-neutral-700 bg-neutral-900/90 px-2 py-1 text-[11px] text-gray-200 hover:border-blue-500 hover:text-white"
                             >
                               {suggestion}
@@ -557,7 +570,6 @@ ${note.content}
 
             <div ref={chatEndRef} />
           </div>
-
         </div>
       </section>
 
@@ -599,6 +611,51 @@ ${note.content}
         </div>
       )}
 
+      {/* BOTTOM NAVIGATION DOCK — EMOJI EDITION */}
+      <nav className="fixed bottom-[80px] left-0 right-0 z-40 flex justify-center pointer-events-none">
+        <div
+          className="flex gap-8 px-6 py-3 rounded-3xl border border-neutral-700 
+                     bg-[#0c0c18]/90 backdrop-blur-xl 
+                     shadow-[0_8px_28px_rgba(0,0,0,0.85)] pointer-events-auto"
+        >
+          {/* Home */}
+          <button
+            onClick={() => (window.location.href = "/")}
+            className="flex flex-col items-center text-xs text-gray-300 hover:text-white transition"
+          >
+            <span className="text-xl">🧭</span>
+            <span className="text-[10px] mt-1">Home</span>
+          </button>
+
+          {/* Whiteboard */}
+          <button
+            onClick={() => (window.location.href = "/whiteboard")}
+            className="flex flex-col items-center text-xs text-gray-300 hover:text-white transition"
+          >
+            <span className="text-xl">🧠</span>
+            <span className="text-[10px] mt-1">Board</span>
+          </button>
+
+          {/* Notepad */}
+          <button
+            onClick={() => (window.location.href = "/notepad")}
+            className="flex flex-col items-center text-xs text-gray-300 hover:text-white transition"
+          >
+            <span className="text-xl">📓</span>
+            <span className="text-[10px] mt-1">Notes</span>
+          </button>
+
+          {/* Image / Visual */}
+          <button
+            onClick={() => (window.location.href = "/image")}
+            className="flex flex-col items-center text-xs text-gray-300 hover:text-white transition"
+          >
+            <span className="text-xl">🖼️</span>
+            <span className="text-[10px] mt-1">Images</span>
+          </button>
+        </div>
+      </nav>
+
       {/* FIXED CHAT BAR — PREMIUM VISUAREALM VERSION */}
       <div
         className="shrink-0 fixed bottom-0 left-0 right-0 z-50 
@@ -608,7 +665,6 @@ ${note.content}
                    shadow-[0_-8px_30px_rgba(0,0,0,0.85)]"
       >
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3">
-
           {file && filePreviewUrl && (
             <div className="flex items-center gap-3 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1">
               <img
@@ -627,7 +683,10 @@ ${note.content}
             </div>
           )}
 
-          <form onSubmit={sendMessage} className="flex items-center gap-2 text-xs">
+          <form
+            onSubmit={sendMessage}
+            className="flex items-center gap-2 text-xs"
+          >
             <input
               type="file"
               onChange={(e) => setFile(e.target.files?.[0] || null)}
@@ -649,10 +708,8 @@ ${note.content}
               {loading ? "Sending..." : "Send"}
             </button>
           </form>
-
         </div>
       </div>
-
     </main>
   );
 }
