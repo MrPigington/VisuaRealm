@@ -4,16 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-/**
- * ✅ Disable all caching, static rendering, or ISR.
- * This tells Next.js + Vercel that this page is *fully dynamic*.
- */
-export const runtime = "edge";
-export const dynamic = "force-dynamic";
-export const revalidate = false; // Must be *false*, not object
-export const dynamicParams = true;
-export const fetchCache = "force-no-store";
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -24,7 +14,10 @@ export default function LoginPage() {
   async function handleSignIn() {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       setLoading(false);
       if (error) return alert(error.message);
       router.push("/chat");
@@ -37,10 +30,14 @@ export default function LoginPage() {
   async function handleSignUp() {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
       setLoading(false);
       if (error) return alert(error.message);
-      alert("✅ Account created! If verification is enabled, check your email.");
+
+      alert("✅ Account created! Check your email if verification is required.");
     } catch (err) {
       console.error(err);
       alert("Unexpected error creating account.");
@@ -61,6 +58,7 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           className="w-full bg-neutral-700 text-gray-100 border border-neutral-600 p-2 rounded mb-3 focus:outline-none focus:ring focus:ring-blue-400"
         />
+
         <input
           type="password"
           placeholder="Password"
