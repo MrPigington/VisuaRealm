@@ -1,10 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-// 💡 no export const dynamic / revalidate here — client pages can’t use them
+// ✅ Prevent Next.js from trying to prerender this page
+export const dynamic = "force-dynamic";
+export const revalidate = false;
+export const fetchCache = "force-no-store";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,14 +16,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) router.push("/chat");
-    };
-    checkUser();
-  }, [router]);
-
+  // 🔐 Sign In
   async function handleSignIn() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -29,18 +25,23 @@ export default function LoginPage() {
     else router.push("/chat");
   }
 
+  // 🪪 Sign Up (no redirect until verified)
   async function handleSignUp() {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
     setLoading(false);
     if (error) alert(error.message);
-    else alert("✅ Account created! Check your email for verification.");
+    else if (!data.user?.email_confirmed_at)
+      alert("Account created — please check your email to verify before logging in.");
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
-      <div className="w-full max-w-sm bg-white shadow-lg rounded-xl p-8">
-        <h1 className="text-2xl font-bold mb-4 text-center text-gray-800">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-neutral-900 text-gray-100">
+      <div className="w-full max-w-sm bg-neutral-800 shadow-lg rounded-xl p-8 border border-neutral-700">
+        <h1 className="text-2xl font-bold mb-4 text-center">
           {mode === "signin" ? "Sign In" : "Create Account"}
         </h1>
 
@@ -49,34 +50,30 @@ export default function LoginPage() {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full border border-gray-300 p-2 rounded mb-3 focus:outline-none focus:ring focus:ring-blue-200"
+          className="w-full bg-neutral-700 text-gray-100 border border-neutral-600 p-2 rounded mb-3 focus:outline-none focus:ring focus:ring-blue-400"
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full border border-gray-300 p-2 rounded mb-4 focus:outline-none focus:ring focus:ring-blue-200"
+          className="w-full bg-neutral-700 text-gray-100 border border-neutral-600 p-2 rounded mb-4 focus:outline-none focus:ring focus:ring-blue-400"
         />
 
         <button
           onClick={mode === "signin" ? handleSignIn : handleSignUp}
           disabled={loading}
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded font-semibold transition disabled:opacity-60"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded font-semibold transition disabled:opacity-60"
         >
-          {loading
-            ? "Processing..."
-            : mode === "signin"
-            ? "Sign In"
-            : "Sign Up"}
+          {loading ? "Processing..." : mode === "signin" ? "Sign In" : "Sign Up"}
         </button>
 
-        <p className="mt-4 text-center text-sm text-gray-600">
+        <p className="mt-4 text-center text-sm text-gray-400">
           {mode === "signin" ? (
             <>
               Don’t have an account?{" "}
               <button
-                className="text-blue-600 underline"
+                className="text-blue-400 underline"
                 onClick={() => setMode("signup")}
               >
                 Sign Up
@@ -86,7 +83,7 @@ export default function LoginPage() {
             <>
               Already have an account?{" "}
               <button
-                className="text-blue-600 underline"
+                className="text-blue-400 underline"
                 onClick={() => setMode("signin")}
               >
                 Sign In
