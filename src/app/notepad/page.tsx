@@ -225,16 +225,19 @@ export default function NotepadPage() {
   }
 
   function getModeInstruction(mode: AiMode) {
-    if (mode === "improve") return "Improve clarity and flow, keep the author's voice.";
-    if (mode === "summarize") return "Summarize into short, clean bullet points.";
+    if (mode === "improve")
+      return "Improve clarity and flow, keep the author's voice.";
+    if (mode === "summarize")
+      return "Summarize into short, clean bullet points.";
     if (mode === "tasks") return "Extract actionable tasks with checkboxes.";
-    if (mode === "rewrite") return "Rewrite more clearly and concisely, preserving meaning.";
+    if (mode === "rewrite")
+      return "Rewrite more clearly and concisely, preserving meaning.";
     return "Help in the most useful way for this note and request.";
   }
 
   function handleModeClick(mode: AiMode) {
     setAiMode(mode);
-    // Just focus the input. No auto-filling, no weird text.
+    // Just focus the input. No auto-filling.
     setTimeout(() => aiInputRef.current?.focus(), 10);
   }
 
@@ -268,7 +271,7 @@ Current note context:
 ${noteContext}
 
 Return ONLY the content that should be written into the note. No meta explanation, no preamble, no closing remarks.
-    `.trim();
+`.trim();
 
     try {
       const res = await fetch("/api/chat", {
@@ -288,23 +291,16 @@ Return ONLY the content that should be written into the note. No meta explanatio
         if (aiMode === "summarize") {
           updateNote(currentNote.id, {
             content:
-              currentNote.content +
-              "\n\n---\nSummary:\n" +
-              reply.trim(),
+              currentNote.content + "\n\n---\nSummary:\n" + reply.trim(),
           });
         } else if (aiMode === "tasks") {
           updateNote(currentNote.id, {
-            content:
-              currentNote.content +
-              "\n\n---\nTasks:\n" +
-              reply.trim(),
+            content: currentNote.content + "\n\n---\nTasks:\n" + reply.trim(),
           });
         } else if (aiMode === "free") {
           updateNote(currentNote.id, {
             content:
-              currentNote.content +
-              "\n\n---\nAI Output:\n" +
-              reply.trim(),
+              currentNote.content + "\n\n---\nAI Output:\n" + reply.trim(),
           });
         } else {
           // improve / rewrite → replace content cleanly
@@ -329,15 +325,14 @@ Return ONLY the content that should be written into the note. No meta explanatio
       }
     } finally {
       setAiLoading(false);
-      // Clear the input so there is no weird leftover text.
-      setAiInput("");
+      setAiInput(""); // no hanging text
     }
   }
 
   /* --------------------------------- RENDER -------------------------------- */
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black px-4 py-4 pb-40 text-gray-100">
+    <main className="min-h-screen bg-gradient-to-b from-[#050510] via-[#050308] to-black px-4 py-4 pb-40 text-gray-100 flex flex-col">
       {/* ------------------------- TOP NAV BUTTONS ------------------------- */}
       <div className="mx-auto mb-4 flex max-w-5xl justify-center gap-4">
         <TopNavButton href="/" label="Main Chat" emoji="💬" />
@@ -347,104 +342,11 @@ Return ONLY the content that should be written into the note. No meta explanatio
         <TopNavButton href="/image" label="Image Gen" emoji="🎨" />
       </div>
 
-      <div className="mx-auto flex max-w-5xl gap-4">
-        {/* ----------------------------- SIDEBAR ----------------------------- */}
-        <aside className="hidden w-60 shrink-0 flex-col rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3 shadow-[0_0_30px_rgba(15,23,42,0.9)] md:flex">
-          <header className="mb-2 flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
-                VISUAREALM
-              </p>
-              <p className="text-sm font-semibold">Notepad</p>
-            </div>
-            <button
-              onClick={addNote}
-              className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-blue-500"
-            >
-              ✨ New
-            </button>
-          </header>
-
-          <div className="mb-2 h-px w-full bg-gradient-to-r from-transparent via-neutral-700 to-transparent" />
-
-          {/* Quick Folders */}
-          <nav className="mb-3 space-y-1 text-sm">
-            <SidebarItem
-              label="All Notes"
-              emoji="📓"
-              active={activeFolderId === "all"}
-              onClick={() => setActiveFolderId("all")}
-            />
-            <SidebarItem
-              label="Favorites"
-              emoji="⭐"
-              active={activeFolderId === "favorites"}
-              onClick={() => setActiveFolderId("favorites")}
-            />
-            <SidebarItem
-              label="Pinned"
-              emoji="📌"
-              active={activeFolderId === "pinned"}
-              onClick={() => setActiveFolderId("pinned")}
-            />
-            <SidebarItem
-              label="Done"
-              emoji="✅"
-              active={activeFolderId === "done"}
-              onClick={() => setActiveFolderId("done")}
-            />
-          </nav>
-
-          <p className="mb-1 mt-1 text-[11px] uppercase tracking-[0.18em] text-gray-500">
-            Folders
-          </p>
-
-          <div className="flex-1 space-y-1 overflow-y-auto pr-1 text-sm">
-            {folders.map((folder) => (
-              <SidebarItem
-                key={folder.id}
-                label={folder.name}
-                emoji={folder.emoji}
-                active={activeFolderId === folder.id}
-                onClick={() => setActiveFolderId(folder.id)}
-              />
-            ))}
-          </div>
-
-          <button
-            onClick={addFolder}
-            className="mt-2 flex items-center justify-center gap-1 rounded-full border border-dashed border-neutral-700 bg-neutral-900/70 px-3 py-1 text-[11px] text-gray-300 hover:border-blue-500 hover:text-white"
-          >
-            <span>➕</span>
-            <span>New Folder</span>
-          </button>
-        </aside>
-
-        {/* ----------------------------- MAIN PANEL ----------------------------- */}
-        <section className="flex-1 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h1 className="text-lg font-semibold tracking-wide">
-                {currentFolderLabel()}
-              </h1>
-              <p className="text-[11px] text-gray-400">
-                Fast capture. Smart filters. Pinned notes always on top. AI
-                upgrades built in.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2 md:hidden">
-              <button
-                onClick={addNote}
-                className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-semibold text-white hover:bg-blue-500"
-              >
-                + Note
-              </button>
-            </div>
-          </div>
-
-          {/* mobile folder chips */}
-          <div className="flex gap-2 overflow-x-auto pb-1 text-[11px] md:hidden">
+      {/* ------------------------- CENTERED CARD LAYOUT ------------------------- */}
+      <div className="flex-1 flex justify-center items-start">
+        <div className="w-full max-w-5xl">
+          {/* Mobile quick filters */}
+          <div className="mb-2 flex gap-2 overflow-x-auto pb-1 text-[11px] md:hidden">
             <Chip
               label="All"
               emoji="📓"
@@ -469,7 +371,6 @@ Return ONLY the content that should be written into the note. No meta explanatio
               active={activeFolderId === "done"}
               onClick={() => setActiveFolderId("done")}
             />
-
             {folders.map((folder) => (
               <Chip
                 key={folder.id}
@@ -481,193 +382,316 @@ Return ONLY the content that should be written into the note. No meta explanatio
             ))}
           </div>
 
-          {/* search + sort */}
-          <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search notes..."
-              className="w-full flex-1 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-500 focus:border-blue-500"
-            />
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/85 shadow-[0_0_40px_rgba(15,23,42,0.9)] overflow-hidden">
+            {/* CARD HEADER */}
+            <div className="flex items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950/95 px-4 py-3">
+              <div>
+                <h1 className="text-sm font-semibold tracking-wide">
+                  {currentFolderLabel()}
+                </h1>
+                <p className="text-[11px] text-gray-400">
+                  Fast capture • Smart filters • AI upgrades built in
+                </p>
+              </div>
 
-            <select
-              value={sort}
-              onChange={(e) =>
-                setSort(
-                  e.target.value as "updated-desc" | "updated-asc" | "title"
-                )
-              }
-              className="w-full rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none focus:border-blue-500 md:w-44"
-            >
-              <option value="updated-desc">Recently Edited</option>
-              <option value="updated-asc">Oldest Edited</option>
-              <option value="title">Title (A→Z)</option>
-            </select>
-          </div>
+              <div className="hidden md:flex items-center gap-2">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search notes..."
+                  className="w-52 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-[11px] text-gray-100 outline-none placeholder:text-gray-500 focus:border-blue-500"
+                />
 
-          {/* notes list + editor */}
-          <div className="flex flex-col gap-3 md:flex-row">
-            {/* LIST */}
-            <div className="space-y-2 md:w-[45%]">
-              <button
-                onClick={addNote}
-                className="hidden w-full rounded-xl border border-dashed border-neutral-700 bg-neutral-900/70 px-3 py-2 text-xs font-semibold text-gray-200 hover:border-blue-500 hover:text-white md:block"
-              >
-                + Add Note
-              </button>
+                <select
+                  value={sort}
+                  onChange={(e) =>
+                    setSort(
+                      e.target.value as
+                        | "updated-desc"
+                        | "updated-asc"
+                        | "title"
+                    )
+                  }
+                  className="w-40 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-[11px] text-gray-100 outline-none focus:border-blue-500"
+                >
+                  <option value="updated-desc">Recently Edited</option>
+                  <option value="updated-asc">Oldest Edited</option>
+                  <option value="title">Title (A→Z)</option>
+                </select>
 
-              {visibleNotes.length === 0 && (
-                <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/80 px-4 py-5 text-center text-xs text-gray-400">
-                  No notes here yet.
-                </div>
-              )}
-
-              <div className="space-y-2">
-                {visibleNotes.map((note) => (
-                  <motion.div
-                    key={note.id}
-                    onClick={() => setActiveNote(note.id)}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className={`cursor-pointer rounded-xl border px-3 py-2 text-xs transition ${
-                      activeNote === note.id
-                        ? "border-blue-500 bg-neutral-900/90 shadow-[0_0_18px_rgba(37,99,235,0.35)]"
-                        : "border-neutral-800 bg-neutral-950/80 hover:border-neutral-600"
-                    }`}
-                  >
-                    <div className="mb-1 flex items-center justify-between">
-                      <h3 className="truncate text-[13px] font-semibold">
-                        {note.title || "Untitled"}
-                      </h3>
-
-                      <div className="flex items-center gap-1 text-[13px]">
-                        {note.pinned && <span>📌</span>}
-                        {note.favorite && <span>⭐</span>}
-                        {note.done && <span>✅</span>}
-                      </div>
-                    </div>
-
-                    <p className="line-clamp-2 text-[11px] text-gray-400">
-                      {note.content || "Empty note..."}
-                    </p>
-
-                    <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500">
-                      <span>
-                        {new Date(note.updated).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                      <span>
-                        {folders.find((f) => f.id === note.folderId)?.emoji ||
-                          "📁"}
-                      </span>
-                    </div>
-                  </motion.div>
-                ))}
+                <button
+                  onClick={addNote}
+                  className="rounded-full bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-blue-500"
+                >
+                  + New Note
+                </button>
               </div>
             </div>
 
-            {/* EDITOR */}
-            <div className="md:w-[55%]">
-              {!active ? (
-                <div className="mt-3 flex h-full min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/70 px-4 py-6 text-center text-xs text-gray-400">
-                  Select a note or create a new one.
-                </div>
-              ) : (
-                <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-3 shadow-[0_0_25px_rgba(15,23,42,0.95)]">
-                  <div className="flex items-center justify-between gap-2">
-                    <input
-                      value={active.title}
-                      onChange={(e) =>
-                        updateNote(active.id, { title: e.target.value })
-                      }
-                      className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-gray-500"
-                      placeholder="Note title..."
-                    />
+            {/* CARD BODY */}
+            <div className="px-4 py-3 space-y-3 md:space-y-0 md:flex md:gap-3">
+              {/* SIDEBAR (DESKTOP) */}
+              <aside className="hidden md:flex md:w-52 md:flex-col md:border-r md:border-neutral-800 md:pr-3">
+                <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500">
+                  Filters
+                </p>
 
-                    <select
-                      value={active.folderId || "inbox"}
-                      onChange={(e) =>
-                        updateNote(active.id, { folderId: e.target.value })
-                      }
-                      className="w-28 rounded-full border border-neutral-700 bg-neutral-900 px-2 py-1 text-[10px] text-gray-100 outline-none focus:border-blue-500"
-                    >
-                      {folders.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.emoji} {f.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <textarea
-                    value={active.content}
-                    onChange={(e) =>
-                      updateNote(active.id, { content: e.target.value })
-                    }
-                    rows={10}
-                    className="w-full resize-none bg-transparent text-xs leading-relaxed text-gray-100 outline-none placeholder:text-gray-500"
-                    placeholder="Write freely..."
+                <div className="mb-3 space-y-1 text-sm">
+                  <SidebarItem
+                    label="All Notes"
+                    emoji="📓"
+                    active={activeFolderId === "all"}
+                    onClick={() => setActiveFolderId("all")}
                   />
+                  <SidebarItem
+                    label="Favorites"
+                    emoji="⭐"
+                    active={activeFolderId === "favorites"}
+                    onClick={() => setActiveFolderId("favorites")}
+                  />
+                  <SidebarItem
+                    label="Pinned"
+                    emoji="📌"
+                    active={activeFolderId === "pinned"}
+                    onClick={() => setActiveFolderId("pinned")}
+                  />
+                  <SidebarItem
+                    label="Done"
+                    emoji="✅"
+                    active={activeFolderId === "done"}
+                    onClick={() => setActiveFolderId("done")}
+                  />
+                </div>
 
-                  <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
-                    <ToggleButton
-                      active={active.pinned}
-                      onClick={() =>
-                        updateNote(active.id, { pinned: !active.pinned })
-                      }
-                      label={active.pinned ? "Unpin" : "Pin"}
-                      emoji="📌"
-                    />
-                    <ToggleButton
-                      active={active.favorite}
-                      onClick={() =>
-                        updateNote(active.id, {
-                          favorite: !active.favorite,
-                        })
-                      }
-                      label={active.favorite ? "Unfavorite" : "Favorite"}
-                      emoji="⭐"
-                    />
-                    <ToggleButton
-                      active={active.done}
-                      onClick={() =>
-                        updateNote(active.id, { done: !active.done })
-                      }
-                      label={active.done ? "Not done" : "Done"}
-                      emoji="✅"
-                    />
-                  </div>
+                <p className="mb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500">
+                  Folders
+                </p>
 
-                  <div className="mt-2 flex items-center justify-between">
-                    <button
-                      onClick={() => deleteNote(active.id)}
-                      className="text-[11px] text-red-400 hover:text-red-300"
+                <div className="flex-1 space-y-1 overflow-y-auto pr-1 text-sm">
+                  {folders.map((folder) => (
+                    <SidebarItem
+                      key={folder.id}
+                      label={folder.name}
+                      emoji={folder.emoji}
+                      active={activeFolderId === folder.id}
+                      onClick={() => setActiveFolderId(folder.id)}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  onClick={addFolder}
+                  className="mt-3 flex items-center justify-center gap-1 rounded-full border border-dashed border-neutral-700 bg-neutral-900/70 px-3 py-1.5 text-[11px] text-gray-300 hover:border-blue-500 hover:text-white"
+                >
+                  ➕ New Folder
+                </button>
+              </aside>
+
+              {/* LIST + EDITOR COLUMN */}
+              <div className="flex-1 flex flex-col md:flex-row md:gap-3">
+                {/* MOBILE search/sort */}
+                <div className="mb-2 flex flex-col gap-2 md:hidden">
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search notes..."
+                    className="w-full rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-500 focus:border-blue-500"
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={sort}
+                      onChange={(e) =>
+                        setSort(
+                          e.target.value as
+                            | "updated-desc"
+                            | "updated-asc"
+                            | "title"
+                        )
+                      }
+                      className="flex-1 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none focus:border-blue-500"
                     >
-                      🗑️ Delete
-                    </button>
+                      <option value="updated-desc">Recently Edited</option>
+                      <option value="updated-asc">Oldest Edited</option>
+                      <option value="title">Title (A→Z)</option>
+                    </select>
 
-                    <p className="text-[10px] text-gray-500">
-                      Last edit{" "}
-                      {new Date(active.updated).toLocaleString([], {
-                        month: "short",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
+                    <button
+                      onClick={addNote}
+                      className="rounded-full bg-blue-600 px-3 py-2 text-[11px] font-semibold text-white hover:bg-blue-500"
+                    >
+                      + Note
+                    </button>
                   </div>
                 </div>
-              )}
+
+                {/* LIST */}
+                <div className="md:w-[40%] space-y-2">
+                  {visibleNotes.length === 0 && (
+                    <div className="mt-1 rounded-xl border border-neutral-800 bg-neutral-950/80 px-4 py-5 text-center text-xs text-gray-400">
+                      No notes here yet.
+                    </div>
+                  )}
+
+                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
+                    {visibleNotes.map((note) => (
+                      <motion.div
+                        key={note.id}
+                        onClick={() => setActiveNote(note.id)}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.15 }}
+                        className={`cursor-pointer rounded-xl border px-3 py-2 text-xs transition ${
+                          activeNote === note.id
+                            ? "border-blue-500 bg-neutral-900/90 shadow-[0_0_18px_rgba(37,99,235,0.35)]"
+                            : "border-neutral-800 bg-neutral-950/80 hover:border-neutral-600"
+                        }`}
+                      >
+                        <div className="mb-1 flex items-center justify-between">
+                          <h3 className="truncate text-[13px] font-semibold">
+                            {note.title || "Untitled"}
+                          </h3>
+
+                          <div className="flex items-center gap-1 text-[13px]">
+                            {note.pinned && <span>📌</span>}
+                            {note.favorite && <span>⭐</span>}
+                            {note.done && <span>✅</span>}
+                          </div>
+                        </div>
+
+                        <p className="line-clamp-2 text-[11px] text-gray-400">
+                          {note.content || "Empty note..."}
+                        </p>
+
+                        <div className="mt-1 flex items-center justify-between text-[10px] text-gray-500">
+                          <span>
+                            {new Date(note.updated).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          <span>
+                            {folders.find((f) => f.id === note.folderId)
+                              ?.emoji || "📁"}
+                          </span>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* EDITOR */}
+                <div className="mt-3 md:mt-0 md:w-[60%]">
+                  {!active ? (
+                    <div className="flex h-full min-h-[260px] items-center justify-center rounded-2xl border border-dashed border-neutral-700 bg-neutral-950/70 px-4 py-6 text-center text-xs text-gray-400">
+                      Select a note or create a new one.
+                    </div>
+                  ) : (
+                    <div className="space-y-3 rounded-2xl border border-neutral-800 bg-neutral-950/90 px-4 py-3 shadow-[0_0_25px_rgba(15,23,42,0.95)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <input
+                          value={active.title}
+                          onChange={(e) =>
+                            updateNote(active.id, {
+                              title: e.target.value,
+                            })
+                          }
+                          className="w-full bg-transparent text-sm font-semibold outline-none placeholder:text-gray-500"
+                          placeholder="Note title..."
+                        />
+
+                        <select
+                          value={active.folderId || "inbox"}
+                          onChange={(e) =>
+                            updateNote(active.id, {
+                              folderId: e.target.value,
+                            })
+                          }
+                          className="w-28 rounded-full border border-neutral-700 bg-neutral-900 px-2 py-1 text-[10px] text-gray-100 outline-none focus:border-blue-500"
+                        >
+                          {folders.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.emoji} {f.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <textarea
+                        value={active.content}
+                        onChange={(e) =>
+                          updateNote(active.id, {
+                            content: e.target.value,
+                          })
+                        }
+                        rows={10}
+                        className="w-full resize-none bg-transparent text-xs leading-relaxed text-gray-100 outline-none placeholder:text-gray-500"
+                        placeholder="Write freely..."
+                      />
+
+                      <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
+                        <ToggleButton
+                          active={active.pinned}
+                          onClick={() =>
+                            updateNote(active.id, {
+                              pinned: !active.pinned,
+                            })
+                          }
+                          label={active.pinned ? "Unpin" : "Pin"}
+                          emoji="📌"
+                        />
+                        <ToggleButton
+                          active={active.favorite}
+                          onClick={() =>
+                            updateNote(active.id, {
+                              favorite: !active.favorite,
+                            })
+                          }
+                          label={
+                            active.favorite ? "Unfavorite" : "Favorite"
+                          }
+                          emoji="⭐"
+                        />
+                        <ToggleButton
+                          active={active.done}
+                          onClick={() =>
+                            updateNote(active.id, {
+                              done: !active.done,
+                            })
+                          }
+                          label={active.done ? "Not done" : "Done"}
+                          emoji="✅"
+                        />
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-between">
+                        <button
+                          onClick={() => deleteNote(active.id)}
+                          className="text-[11px] text-red-400 hover:text-red-300"
+                        >
+                          🗑️ Delete
+                        </button>
+
+                        <p className="text-[10px] text-gray-500">
+                          Last edit{" "}
+                          {new Date(active.updated).toLocaleString([], {
+                            month: "short",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        </section>
+        </div>
       </div>
 
       {/* ---------------------------- AI DOCK ---------------------------- */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-700 bg-[#0d0d16]/90 backdrop-blur-xl shadow-[0_-8px_30px_rgba(0,0,0,0.85)]">
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-neutral-800 bg-gradient-to-r from-violet-700 via-fuchsia-600 to-blue-600/90 backdrop-blur-xl shadow-[0_-8px_40px_rgba(0,0,0,0.95)]">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-3">
           <div className="flex flex-wrap gap-2 text-[11px]">
             <DockButton
@@ -707,7 +731,7 @@ Return ONLY the content that should be written into the note. No meta explanatio
             />
           </div>
 
-          <p className="text-[10px] text-gray-500">
+          <p className="text-[10px] text-gray-100/80">
             {getModeLabel(aiMode)}
           </p>
 
@@ -719,16 +743,16 @@ Return ONLY the content that should be written into the note. No meta explanatio
               ref={aiInputRef}
               value={aiInput}
               onChange={(e) => setAiInput(e.target.value)}
-              className="flex-1 rounded-full border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-gray-100 outline-none placeholder:text-gray-500 focus:border-blue-500"
+              className="flex-1 rounded-full border border-neutral-300/40 bg-black/25 px-3 py-2 text-xs text-gray-50 outline-none placeholder:text-gray-200/70 focus:border-white"
               placeholder={
                 active
-                  ? "Optional: add extra instructions for how AI should transform this note..."
-                  : "No active note — describe what you want AI to create (e.g. outline, draft, list)..."
+                  ? "Optional: tell AI how to transform this note..."
+                  : "No active note — describe what you want AI to create..."
               }
             />
             <button
               disabled={aiLoading}
-              className="rounded-full bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:opacity-60"
+              className="rounded-full bg-black/70 px-4 py-2 text-xs font-semibold text-white hover:bg-black/90 disabled:opacity-60"
             >
               {aiLoading ? "Thinking..." : "Run AI"}
             </button>
@@ -860,14 +884,14 @@ function DockButton({
 }) {
   const activeStyles =
     color === "blue"
-      ? "border-blue-500 bg-blue-600/20 text-blue-100"
+      ? "border-blue-200 bg-blue-500/30 text-blue-50"
       : color === "emerald"
-      ? "border-emerald-500 bg-emerald-600/20 text-emerald-100"
+      ? "border-emerald-200 bg-emerald-500/30 text-emerald-50"
       : color === "cyan"
-      ? "border-cyan-500 bg-cyan-600/20 text-cyan-100"
+      ? "border-cyan-200 bg-cyan-500/30 text-cyan-50"
       : color === "amber"
-      ? "border-amber-500 bg-amber-500/20 text-amber-100"
-      : "border-purple-500 bg-purple-600/20 text-purple-100";
+      ? "border-amber-200 bg-amber-400/30 text-amber-50"
+      : "border-purple-200 bg-purple-500/30 text-purple-50";
 
   return (
     <button
@@ -876,7 +900,7 @@ function DockButton({
       className={`rounded-full border px-3 py-1 ${
         active
           ? activeStyles
-          : "border-neutral-700 bg-neutral-900/80 text-gray-300"
+          : "border-white/20 bg-black/20 text-gray-100"
       }`}
     >
       {emoji} {label}
