@@ -1,13 +1,12 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0; // ✅ numeric zero also allowed, safest
+export const fetchCache = "force-no-store";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-
-// ✅ Correct dynamic flags for Vercel / Next.js 14+
-export const dynamic = "force-dynamic";
-export const revalidate = false;         // ❗ must be boolean, not 0
-export const fetchCache = "force-no-store";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,7 +15,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
 
-  // 🔁 Auto-redirect if already logged in
+  // ✅ Redirect if logged in
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -25,30 +24,25 @@ export default function LoginPage() {
     checkUser();
   }, [router]);
 
-  // 🔐 Handle Sign In
+  // ✅ Sign In
   async function handleSignIn() {
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) alert(error.message);
     else router.push("/chat");
   }
 
-  // 🪪 Handle Sign Up
+  // ✅ Sign Up
   async function handleSignUp() {
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+    const { error } = await supabase.auth.signUp({ email, password });
     setLoading(false);
     if (error) alert(error.message);
     else alert("✅ Account created! Check your email for verification.");
   }
 
+  // ✅ UI
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-sm bg-white shadow-lg rounded-xl p-8">
