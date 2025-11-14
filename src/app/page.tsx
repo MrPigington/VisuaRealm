@@ -40,6 +40,7 @@ export default function ChatPage() {
   // --- AUTH / USER ---
   const [user, setUser] = useState<any>(null);
   const [displayName, setDisplayName] = useState<string>("");
+  const [userTier] = useState<string>("Free"); // temp until Stripe
 
   // --- CHAT STATE ---
   const [messages, setMessages] = useState<Message[]>([]);
@@ -127,6 +128,10 @@ export default function ChatPage() {
     localStorage.setItem("visuarealm_notes", JSON.stringify(notes));
     localStorage.setItem("visuarealm_active_note", String(activeNote));
   }, [notes, activeNote]);
+
+  // Active note content used as AI context
+  const activeNoteContent =
+    notes.find((n) => n.id === activeNote)?.content?.trim() || "";
 
   // -----------------------
   // FILE PREVIEW
@@ -390,6 +395,7 @@ export default function ChatPage() {
     if (loading) return;
     if (!input.trim() && !file) return;
 
+    // What the user sees in the chat
     const userMessage: Message = {
       role: "user",
       content: input,
@@ -397,12 +403,25 @@ export default function ChatPage() {
       createdAt: Date.now(),
     };
 
+    // What the API actually receives (notes used as context)
+    const composedContent =
+      activeNoteContent && input.trim()
+        ? `Context from my notes:\n${activeNoteContent}\n\nMain request:\n${input}`
+        : activeNoteContent && !input.trim()
+        ? `Use this context:\n${activeNoteContent}`
+        : input;
+
+    const apiMessagesForSend = [
+      ...messages,
+      { ...userMessage, content: composedContent },
+    ];
+
     setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
     setInput("");
 
     const formData = new FormData();
-    formData.append("messages", JSON.stringify([...messages, userMessage]));
+    formData.append("messages", JSON.stringify(apiMessagesForSend));
     if (file) formData.append("file", file);
 
     try {
@@ -583,7 +602,7 @@ ${note.content}
             </div>
           </div>
 
-          {/* Right side: username + auth */}
+          {/* Right side: username + auth + tier */}
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex flex-col items-end gap-1">
               <span className="text-[10px] uppercase tracking-[0.18em] text-gray-500">
@@ -613,6 +632,17 @@ ${note.content}
                          hover:border-cyan-400/70 hover:text-white transition"
             >
               <span>{showNotes ? "Hide Notes" : "Show Notes"}</span>
+            </button>
+
+            {/* Tier + Upgrade */}
+            <span className="hidden sm:inline rounded-full bg-purple-500/20 border border-purple-400/40 px-2 py-0.5 text-[10px] text-purple-200">
+              {userTier} Tier
+            </span>
+            <button
+              onClick={() => (window.location.href = "/upgrade")}
+              className="hidden sm:inline rounded-full bg-gradient-to-r from-purple-500 to-cyan-500 px-3 py-1 text-[11px] font-semibold text-black hover:from-purple-400 hover:to-cyan-400"
+            >
+              Upgrade
             </button>
 
             {user ? (
@@ -720,6 +750,21 @@ ${note.content}
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+      )}
+
+      {/* AI CONTEXT STRIP */}
+      {showNotes && (
+        <section className="shrink-0 border-b border-cyan-500/30 bg-black/70 backdrop-blur-xl">
+          <div className="mx-auto max-w-5xl px-4 py-2 flex items-center gap-2 text-[11px]">
+            <span className="uppercase tracking-[0.2em] text-cyan-300">
+              AI Context →
+            </span>
+            <span className="text-gray-300 truncate">
+              {activeNoteContent ||
+                "No active note content. Type above to give VisuaRealm extra context for your replies."}
+            </span>
           </div>
         </section>
       )}
