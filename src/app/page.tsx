@@ -39,13 +39,13 @@ interface ChatSession {
 type Tier = "anonymous" | "free" | "plus" | "pro";
 
 export default function ChatPage() {
-  // --- AUTH / USER ---
+  // --- AUTH / USER / TIER ---
   const [user, setUser] = useState<any>(null);
-  const [tier, setTier] = useState<Tier>("anonymous"); // ⭐ NEW
+  const [tier, setTier] = useState<Tier>("anonymous");
   const [displayName, setDisplayName] = useState<string>("");
 
   const isSignedIn = !!user;
-  const isCloudTier = isSignedIn && tier !== "free"; // ⭐ NEW
+  const isCloudTier = isSignedIn && tier !== "free"; // anything above free syncs to Supabase
 
   // --- CHAT STATE ---
   const [messages, setMessages] = useState<Message[]>([]);
@@ -72,7 +72,7 @@ export default function ChatPage() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
   // -----------------------
-  // AUTH + USERNAME + TIER
+  // AUTH + TIER + DISPLAY NAME
   // -----------------------
   useEffect(() => {
     (async () => {
@@ -81,7 +81,6 @@ export default function ChatPage() {
       setUser(u);
 
       if (u) {
-        // Load tier from profiles
         const { data: profile } = await supabase
           .from("profiles")
           .select("tier")
@@ -121,7 +120,7 @@ export default function ChatPage() {
   }, [displayName]);
 
   // -----------------------
-  // NOTES PERSISTENCE (always local, for all tiers)
+  // NOTES PERSISTENCE (always local)
   // -----------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -217,13 +216,14 @@ export default function ChatPage() {
           }
         }
 
-        // create a default chat
+        // default chat
         const id = String(Date.now());
+        const now = Date.now();
         const first: ChatSession = {
           id,
           title: "New VisuaRealm Chat",
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          createdAt: now,
+          updatedAt: now,
           messageCount: 0,
         };
         setChatSessions([first]);
@@ -239,7 +239,7 @@ export default function ChatPage() {
         loadLocalChats();
         return;
       }
-      // Load from Supabase
+
       const { data: sessions, error } = await supabase
         .from("chat_sessions")
         .select("*")
@@ -247,7 +247,6 @@ export default function ChatPage() {
         .order("updated_at", { ascending: false });
 
       if (error || !sessions || sessions.length === 0) {
-        // If no cloud chats, start with a fresh one
         const id = String(Date.now());
         const now = Date.now();
         const first: ChatSession = {
@@ -301,14 +300,14 @@ export default function ChatPage() {
     }
   }, [isCloudTier, user]);
 
-  // Persist chat sessions to localStorage ONLY for unsigned + free
+  // Persist chat sessions to localStorage ONLY for local tiers
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isCloudTier) return;
     localStorage.setItem("visuarealm_chats_meta", JSON.stringify(chatSessions));
   }, [chatSessions, isCloudTier]);
 
-  // Persist messages to localStorage ONLY for unsigned + free
+  // Persist messages to localStorage ONLY for local tiers
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isCloudTier) return;
@@ -333,7 +332,7 @@ export default function ChatPage() {
   }
 
   function handleNewChat() {
-    // Limit: free & unsigned = only 1 chat
+    // Limit: unsigned + free = 1 chat
     if (!isCloudTier && chatSessions.length >= 1) {
       alert("Upgrade your VisuaRealm tier to create more chats.");
       return;
@@ -380,7 +379,6 @@ export default function ChatPage() {
       return;
     }
 
-    // Local path
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem(`visuarealm_chat_${id}`);
@@ -409,7 +407,7 @@ export default function ChatPage() {
         localStorage.removeItem(`visuarealm_chat_${id}`);
       }
     } else if (user) {
-      // Cloud delete (best-effort)
+      // best-effort cloud delete
       supabase.from("messages").delete().eq("user_id", user.id).eq("chat_id", id);
       supabase.from("chat_sessions").delete().eq("user_id", user.id).eq("id", id);
     }
@@ -440,7 +438,7 @@ export default function ChatPage() {
   // NOTES HANDLERS
   // -----------------------
   function addNote() {
-    // Limit: free & unsigned = only 1 note for now
+    // Limit: unsigned + free = 1 note
     if (!isCloudTier && notes.length >= 1) {
       alert("Upgrade your VisuaRealm tier to create more notes.");
       return;
@@ -473,6 +471,9 @@ export default function ChatPage() {
     if (activeNote === id) setActiveNote(rest[0].id);
   }
 
+  // -----------------------
+  // RESPONSE SPLITTER
+  // -----------------------
   function splitResponse(content: string) {
     const normalized = content.replace(/\r?\n+/g, "\n").trim();
 
@@ -558,7 +559,7 @@ export default function ChatPage() {
       const nextMessages = [...messages, ...newMessages];
       setMessages(nextMessages);
 
-      // ⭐ CLOUD SAVE for paid tiers
+      // Cloud save for non-free signed-in tiers
       if (isCloudTier && user && activeChatId) {
         const nowIso = new Date().toISOString();
 
@@ -567,6 +568,7 @@ export default function ChatPage() {
           user_id: user.id,
           title: deriveTitle(nextMessages),
           updated_at: nowIso,
+          // message_count can be updated by DB trigger or here if you add the column
         });
 
         await supabase.from("messages").insert(
@@ -580,7 +582,7 @@ export default function ChatPage() {
         );
       }
 
-      // Update local meta for UI counts
+      // Update UI meta counts
       setChatSessions((prev) =>
         prev.map((s) =>
           s.id === activeChatId
@@ -680,7 +682,7 @@ ${note.content}
   }
 
   // -----------------------
-  // MARKDOWN
+  // MARKDOWN RENDERING
   // -----------------------
   const markdownComponents: Components = {
     code({ className, children, ...props }) {
@@ -737,16 +739,13 @@ ${note.content}
             </div>
           </div>
 
-          {/* Right side: username + auth */}
+          {/* Right side: username + tier + nav */}
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex flex-col items-end gap-1">
               <span className="text-[10px] uppercase tracking-[0.18em] text-gray-500">
                 CURRENT USER
               </span>
-              <div
-                className="flex items-center gap-2 rounded-full border border-white/10 
-                           bg-white/5 px-2 py-1"
-              >
+              <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2 py-1">
                 <input
                   value={displayName}
                   onChange={handleNameChange}
@@ -765,6 +764,24 @@ ${note.content}
                 </span>
               </div>
             </div>
+
+            {/* Support / Upgrade shortcuts */}
+            <button
+              onClick={() => (window.location.href = "/support")}
+              className="hidden sm:inline-flex items-center rounded-full border border-white/10 
+                         bg-white/5 px-3 py-1 text-[11px] text-gray-200 
+                         hover:border-cyan-400/70 hover:text-white transition"
+            >
+              Support
+            </button>
+            <button
+              onClick={() => (window.location.href = "/pricing")}
+              className="hidden sm:inline-flex items-center rounded-full border border-cyan-500/60 
+                         bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-200 
+                         hover:bg-cyan-400/30 hover:border-cyan-400 transition"
+            >
+              Upgrade
+            </button>
 
             <button
               onClick={() => setShowNotes((v) => !v)}
@@ -963,7 +980,7 @@ ${note.content}
             <div
               ref={scrollContainerRef}
               className="flex-1 space-y-5 overflow-y-auto rounded-3xl border border-white/5 
-                         bg-black/50 px-3 py-4 pb-24 shadow-[0_0_50px_rgba(0,0,0,0.9)]  // ⭐ extra bottom padding
+                         bg-black/50 px-3 py-4 pb-24 shadow-[0_0_50px_rgba(0,0,0,0.9)]
                          backdrop-blur-xl"
             >
               {messages.length === 0 && (
@@ -1083,7 +1100,7 @@ ${note.content}
                           />
                         )}
 
-                        {/* ⭐ Moved suggestions slightly up inside bubble */}
+                        {/* Quick actions inside bubble, above bottom bar */}
                         {!isUser && (
                           <div className="mt-3 pt-2 border-t border-white/10 flex flex-wrap gap-2">
                             {[
