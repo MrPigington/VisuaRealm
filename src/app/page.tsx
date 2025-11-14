@@ -36,11 +36,16 @@ interface ChatSession {
   messageCount: number;
 }
 
+type Tier = "anonymous" | "free" | "plus" | "pro";
+
 export default function ChatPage() {
   // --- AUTH / USER ---
   const [user, setUser] = useState<any>(null);
+  const [tier, setTier] = useState<Tier>("anonymous"); // ⭐ NEW
   const [displayName, setDisplayName] = useState<string>("");
-  const [userTier] = useState<string>("Free"); // temp until Stripe
+
+  const isSignedIn = !!user;
+  const isCloudTier = isSignedIn && tier !== "free"; // ⭐ NEW
 
   // --- CHAT STATE ---
   const [messages, setMessages] = useState<Message[]>([]);
@@ -67,12 +72,28 @@ export default function ChatPage() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
   // -----------------------
-  // AUTH + USERNAME LOGIC
+  // AUTH + USERNAME + TIER
   // -----------------------
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data?.user || null);
-    });
+    (async () => {
+      const { data } = await supabase.auth.getUser();
+      const u = data?.user || null;
+      setUser(u);
+
+      if (u) {
+        // Load tier from profiles
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("tier")
+          .eq("id", u.id)
+          .single();
+
+        const t = (profile?.tier as Tier | undefined) || "free";
+        setTier(t);
+      } else {
+        setTier("anonymous");
+      }
+    })();
   }, []);
 
   // Load display name from localStorage or derive from email
@@ -100,7 +121,7 @@ export default function ChatPage() {
   }, [displayName]);
 
   // -----------------------
-  // NOTES PERSISTENCE
+  // NOTES PERSISTENCE (always local, for all tiers)
   // -----------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -128,10 +149,6 @@ export default function ChatPage() {
     localStorage.setItem("visuarealm_notes", JSON.stringify(notes));
     localStorage.setItem("visuarealm_active_note", String(activeNote));
   }, [notes, activeNote]);
-
-  // Active note content used as AI context
-  const activeNoteContent =
-    notes.find((n) => n.id === activeNote)?.content?.trim() || "";
 
   // -----------------------
   // FILE PREVIEW
@@ -176,52 +193,125 @@ export default function ChatPage() {
   }, []);
 
   // -----------------------
-  // CHAT SESSIONS
+  // CHAT SESSIONS LOADING
   // -----------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
-    try {
-      const stored = localStorage.getItem("visuarealm_chats_meta");
-      if (stored) {
-        const parsed = JSON.parse(stored) as ChatSession[];
-        if (parsed.length) {
-          setChatSessions(parsed);
-          const first = parsed[0];
-          setActiveChatId(first.id);
 
-          const raw = localStorage.getItem(`visuarealm_chat_${first.id}`);
-          if (raw) {
-            const parsedMessages = JSON.parse(raw) as Message[];
-            setMessages(parsedMessages);
+    const loadLocalChats = () => {
+      try {
+        const stored = localStorage.getItem("visuarealm_chats_meta");
+        if (stored) {
+          const parsed = JSON.parse(stored) as ChatSession[];
+          if (parsed.length) {
+            setChatSessions(parsed);
+            const first = parsed[0];
+            setActiveChatId(first.id);
+
+            const raw = localStorage.getItem(`visuarealm_chat_${first.id}`);
+            if (raw) {
+              const parsedMessages = JSON.parse(raw) as Message[];
+              setMessages(parsedMessages);
+            }
+            return;
           }
-          return;
         }
+
+        // create a default chat
+        const id = String(Date.now());
+        const first: ChatSession = {
+          id,
+          title: "New VisuaRealm Chat",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          messageCount: 0,
+        };
+        setChatSessions([first]);
+        setActiveChatId(id);
+        setMessages([]);
+      } catch {
+        // ignore
+      }
+    };
+
+    const loadCloudChats = async () => {
+      if (!user) {
+        loadLocalChats();
+        return;
+      }
+      // Load from Supabase
+      const { data: sessions, error } = await supabase
+        .from("chat_sessions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("updated_at", { ascending: false });
+
+      if (error || !sessions || sessions.length === 0) {
+        // If no cloud chats, start with a fresh one
+        const id = String(Date.now());
+        const now = Date.now();
+        const first: ChatSession = {
+          id,
+          title: "New VisuaRealm Chat",
+          createdAt: now,
+          updatedAt: now,
+          messageCount: 0,
+        };
+        setChatSessions([first]);
+        setActiveChatId(id);
+        setMessages([]);
+        return;
       }
 
-      // create a default chat
-      const id = String(Date.now());
-      const first: ChatSession = {
-        id,
-        title: "New VisuaRealm Chat",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        messageCount: 0,
-      };
-      setChatSessions([first]);
-      setActiveChatId(id);
-      setMessages([]);
-    } catch {
-      // ignore
+      const formatted: ChatSession[] = sessions.map((s: any) => ({
+        id: s.id,
+        title: s.title || "VisuaRealm Chat",
+        createdAt: s.created_at ? Date.parse(s.created_at) : Date.now(),
+        updatedAt: s.updated_at ? Date.parse(s.updated_at) : Date.now(),
+        messageCount: s.message_count ?? 0,
+      }));
+
+      setChatSessions(formatted);
+      const first = formatted[0];
+      setActiveChatId(first.id);
+
+      const { data: msgs } = await supabase
+        .from("messages")
+        .select("role, content, created_at")
+        .eq("user_id", user.id)
+        .eq("chat_id", first.id)
+        .order("created_at", { ascending: true });
+
+      if (msgs) {
+        const mapped: Message[] = msgs.map((m: any) => ({
+          role: m.role,
+          content: m.content,
+          createdAt: m.created_at ? Date.parse(m.created_at) : Date.now(),
+        }));
+        setMessages(mapped);
+      } else {
+        setMessages([]);
+      }
+    };
+
+    if (isCloudTier) {
+      loadCloudChats();
+    } else {
+      loadLocalChats();
     }
-  }, []);
+  }, [isCloudTier, user]);
 
+  // Persist chat sessions to localStorage ONLY for unsigned + free
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isCloudTier) return;
     localStorage.setItem("visuarealm_chats_meta", JSON.stringify(chatSessions));
-  }, [chatSessions]);
+  }, [chatSessions, isCloudTier]);
 
+  // Persist messages to localStorage ONLY for unsigned + free
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isCloudTier) return;
     if (!activeChatId) return;
 
     try {
@@ -229,28 +319,10 @@ export default function ChatPage() {
         `visuarealm_chat_${activeChatId}`,
         JSON.stringify(messages)
       );
-
-      setChatSessions((prev) =>
-        prev.map((s) =>
-          s.id === activeChatId
-            ? {
-                ...s,
-                updatedAt: Date.now(),
-                messageCount: messages.length,
-                title:
-                  s.title === "New Chat" ||
-                  s.title === "New VisuaRealm Chat" ||
-                  !s.title.trim()
-                    ? deriveTitle(messages) || "New VisuaRealm Chat"
-                    : s.title,
-              }
-            : s
-        )
-      );
     } catch {
       // ignore
     }
-  }, [messages, activeChatId]);
+  }, [messages, activeChatId, isCloudTier]);
 
   function deriveTitle(msgs: Message[]): string {
     const firstUser = msgs.find((m) => m.role === "user");
@@ -261,12 +333,19 @@ export default function ChatPage() {
   }
 
   function handleNewChat() {
+    // Limit: free & unsigned = only 1 chat
+    if (!isCloudTier && chatSessions.length >= 1) {
+      alert("Upgrade your VisuaRealm tier to create more chats.");
+      return;
+    }
+
     const id = String(Date.now());
+    const now = Date.now();
     const session: ChatSession = {
       id,
       title: "New VisuaRealm Chat",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
       messageCount: 0,
     };
     setChatSessions((prev) => [session, ...prev]);
@@ -277,6 +356,31 @@ export default function ChatPage() {
   function handleSelectChat(id: string) {
     if (id === activeChatId) return;
     setActiveChatId(id);
+
+    if (isCloudTier && user) {
+      (async () => {
+        const { data: msgs } = await supabase
+          .from("messages")
+          .select("role, content, created_at")
+          .eq("user_id", user.id)
+          .eq("chat_id", id)
+          .order("created_at", { ascending: true });
+
+        if (msgs) {
+          const mapped: Message[] = msgs.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+            createdAt: m.created_at ? Date.parse(m.created_at) : Date.now(),
+          }));
+          setMessages(mapped);
+        } else {
+          setMessages([]);
+        }
+      })();
+      return;
+    }
+
+    // Local path
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem(`visuarealm_chat_${id}`);
@@ -299,34 +403,30 @@ export default function ChatPage() {
 
   function handleDeleteChat(id: string) {
     setChatSessions((prev) => prev.filter((s) => s.id !== id));
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(`visuarealm_chat_${id}`);
+
+    if (!isCloudTier) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(`visuarealm_chat_${id}`);
+      }
+    } else if (user) {
+      // Cloud delete (best-effort)
+      supabase.from("messages").delete().eq("user_id", user.id).eq("chat_id", id);
+      supabase.from("chat_sessions").delete().eq("user_id", user.id).eq("id", id);
     }
+
     if (activeChatId === id) {
       const remaining = chatSessions.filter((s) => s.id !== id);
       if (remaining.length) {
         const first = remaining[0];
-        setActiveChatId(first.id);
-        if (typeof window !== "undefined") {
-          const raw = localStorage.getItem(`visuarealm_chat_${first.id}`);
-          if (raw) {
-            try {
-              const parsedMessages = JSON.parse(raw) as Message[];
-              setMessages(parsedMessages);
-            } catch {
-              setMessages([]);
-            }
-          } else {
-            setMessages([]);
-          }
-        }
+        handleSelectChat(first.id);
       } else {
         const newId = String(Date.now());
+        const now = Date.now();
         const newSession: ChatSession = {
           id: newId,
           title: "New VisuaRealm Chat",
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+          createdAt: now,
+          updatedAt: now,
           messageCount: 0,
         };
         setChatSessions([newSession]);
@@ -340,6 +440,12 @@ export default function ChatPage() {
   // NOTES HANDLERS
   // -----------------------
   function addNote() {
+    // Limit: free & unsigned = only 1 note for now
+    if (!isCloudTier && notes.length >= 1) {
+      alert("Upgrade your VisuaRealm tier to create more notes.");
+      return;
+    }
+
     const newNote: Note = {
       id: Date.now(),
       title: "Untitled",
@@ -395,33 +501,21 @@ export default function ChatPage() {
     if (loading) return;
     if (!input.trim() && !file) return;
 
-    // What the user sees in the chat
+    const now = Date.now();
     const userMessage: Message = {
       role: "user",
       content: input,
       fileUrl: file ? URL.createObjectURL(file) : undefined,
-      createdAt: Date.now(),
+      createdAt: now,
     };
 
-    // What the API actually receives (notes used as context)
-    const composedContent =
-      activeNoteContent && input.trim()
-        ? `Context from my notes:\n${activeNoteContent}\n\nMain request:\n${input}`
-        : activeNoteContent && !input.trim()
-        ? `Use this context:\n${activeNoteContent}`
-        : input;
-
-    const apiMessagesForSend = [
-      ...messages,
-      { ...userMessage, content: composedContent },
-    ];
-
-    setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
     setInput("");
 
+    const baseMessages = [...messages, userMessage];
+
     const formData = new FormData();
-    formData.append("messages", JSON.stringify(apiMessagesForSend));
+    formData.append("messages", JSON.stringify(baseMessages));
     if (file) formData.append("file", file);
 
     try {
@@ -431,44 +525,87 @@ export default function ChatPage() {
 
       const { main, recap, urls } = splitResponse(reply);
 
-      if (main)
-        setMessages((p) => [
-          ...p,
-          { role: "assistant", content: main, createdAt: Date.now() },
-        ]);
+      const newMessages: Message[] = [userMessage];
 
-      if (recap)
-        setMessages((p) => [
-          ...p,
-          {
-            role: "assistant",
-            content: recap,
-            type: "recap",
-            createdAt: Date.now(),
-          },
-        ]);
-
-      if (urls.length)
-        setMessages((p) => [
-          ...p,
-          {
-            role: "assistant",
-            content:
-              "🔗 Resource Links:\n" +
-              urls.map((u) => `- [${u}](${u})`).join("\n"),
-            type: "recap",
-            createdAt: Date.now(),
-          },
-        ]);
-    } catch {
-      setMessages((p) => [
-        ...p,
-        {
+      if (main) {
+        newMessages.push({
           role: "assistant",
-          content: "⚠️ Could not reach the API.",
+          content: main,
           createdAt: Date.now(),
-        },
-      ]);
+        });
+      }
+
+      if (recap) {
+        newMessages.push({
+          role: "assistant",
+          content: recap,
+          type: "recap",
+          createdAt: Date.now(),
+        });
+      }
+
+      if (urls.length) {
+        newMessages.push({
+          role: "assistant",
+          content:
+            "🔗 Resource Links:\n" +
+            urls.map((u) => `- [${u}](${u})`).join("\n"),
+          type: "recap",
+          createdAt: Date.now(),
+        });
+      }
+
+      const nextMessages = [...messages, ...newMessages];
+      setMessages(nextMessages);
+
+      // ⭐ CLOUD SAVE for paid tiers
+      if (isCloudTier && user && activeChatId) {
+        const nowIso = new Date().toISOString();
+
+        await supabase.from("chat_sessions").upsert({
+          id: activeChatId,
+          user_id: user.id,
+          title: deriveTitle(nextMessages),
+          updated_at: nowIso,
+        });
+
+        await supabase.from("messages").insert(
+          newMessages.map((m) => ({
+            user_id: user.id,
+            chat_id: activeChatId,
+            role: m.role,
+            content: m.content,
+            created_at: new Date(m.createdAt || Date.now()).toISOString(),
+          }))
+        );
+      }
+
+      // Update local meta for UI counts
+      setChatSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeChatId
+            ? {
+                ...s,
+                updatedAt: Date.now(),
+                messageCount: nextMessages.length,
+                title:
+                  s.title === "New Chat" ||
+                  s.title === "New VisuaRealm Chat" ||
+                  !s.title.trim()
+                    ? deriveTitle(nextMessages) || "New VisuaRealm Chat"
+                    : s.title,
+              }
+            : s
+        )
+      );
+    } catch {
+      const errorMsg: Message = {
+        role: "assistant",
+        content: "⚠️ Could not reach the API.",
+        createdAt: Date.now(),
+      };
+      const next = [...messages, userMessage, errorMsg];
+      setMessages(next);
     } finally {
       setFile(null);
       setLoading(false);
@@ -505,9 +642,7 @@ ${note.content}
       const reply = data.reply || "No response.";
 
       setNotes((prev) =>
-        prev.map((n) =>
-          n.id === activeNote ? { ...n, content: reply } : n
-        )
+        prev.map((n) => (n.id === activeNote ? { ...n, content: reply } : n))
       );
     } finally {
       setImproving(false);
@@ -602,7 +737,7 @@ ${note.content}
             </div>
           </div>
 
-          {/* Right side: username + auth + tier */}
+          {/* Right side: username + auth */}
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex flex-col items-end gap-1">
               <span className="text-[10px] uppercase tracking-[0.18em] text-gray-500">
@@ -620,7 +755,13 @@ ${note.content}
                   placeholder="Your name"
                 />
                 <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] text-emerald-300">
-                  {user ? "Signed In" : "Local"}
+                  {isCloudTier
+                    ? tier === "pro"
+                      ? "Pro Cloud"
+                      : "Cloud"
+                    : isSignedIn
+                    ? "Free (Local)"
+                    : "Local"}
                 </span>
               </div>
             </div>
@@ -634,17 +775,6 @@ ${note.content}
               <span>{showNotes ? "Hide Notes" : "Show Notes"}</span>
             </button>
 
-            {/* Tier + Upgrade */}
-            <span className="hidden sm:inline rounded-full bg-purple-500/20 border border-purple-400/40 px-2 py-0.5 text-[10px] text-purple-200">
-              {userTier} Tier
-            </span>
-            <button
-              onClick={() => (window.location.href = "/upgrade")}
-              className="hidden sm:inline rounded-full bg-gradient-to-r from-purple-500 to-cyan-500 px-3 py-1 text-[11px] font-semibold text-black hover:from-purple-400 hover:to-cyan-400"
-            >
-              Upgrade
-            </button>
-
             {user ? (
               <>
                 <span className="hidden text-[11px] text-gray-400 lg:inline">
@@ -654,6 +784,7 @@ ${note.content}
                   onClick={async () => {
                     await supabase.auth.signOut();
                     setUser(null);
+                    setTier("anonymous");
                   }}
                   className="rounded-full bg-red-500/90 px-3 py-1 text-[11px] font-medium text-white hover:bg-red-600"
                 >
@@ -683,7 +814,7 @@ ${note.content}
                 </h2>
                 <p className="text-[11px] text-gray-500">
                   Stored locally on this device. Perfect for ideas, prompts, and
-                  context.
+                  context VisuaRealm should use.
                 </p>
               </div>
 
@@ -750,21 +881,6 @@ ${note.content}
                 </div>
               ))}
             </div>
-          </div>
-        </section>
-      )}
-
-      {/* AI CONTEXT STRIP */}
-      {showNotes && (
-        <section className="shrink-0 border-b border-cyan-500/30 bg-black/70 backdrop-blur-xl">
-          <div className="mx-auto max-w-5xl px-4 py-2 flex items-center gap-2 text-[11px]">
-            <span className="uppercase tracking-[0.2em] text-cyan-300">
-              AI Context →
-            </span>
-            <span className="text-gray-300 truncate">
-              {activeNoteContent ||
-                "No active note content. Type above to give VisuaRealm extra context for your replies."}
-            </span>
           </div>
         </section>
       )}
@@ -847,7 +963,7 @@ ${note.content}
             <div
               ref={scrollContainerRef}
               className="flex-1 space-y-5 overflow-y-auto rounded-3xl border border-white/5 
-                         bg-black/50 px-3 py-4 shadow-[0_0_50px_rgba(0,0,0,0.9)]
+                         bg-black/50 px-3 py-4 pb-24 shadow-[0_0_50px_rgba(0,0,0,0.9)]  // ⭐ extra bottom padding
                          backdrop-blur-xl"
             >
               {messages.length === 0 && (
@@ -863,8 +979,8 @@ ${note.content}
                     Ask for code, articles, designs, systems, or life planning.
                   </p>
                   <p className="text-[11px] text-gray-500">
-                    Your chats are stored per-session locally for now. Soon:
-                    synced history, limits, and tiers.
+                    Unsigned & free users save locally. Paid tiers sync to the
+                    cloud across devices.
                   </p>
                 </div>
               )}
@@ -926,7 +1042,7 @@ ${note.content}
                               : "border-white/10 bg-black/80 text-gray-100"
                           }`}
                       >
-                        <div className="mb-1 flex items-center justify-between">
+                        <div className="mb-2 flex items-center justify-between">
                           <p
                             className={`text-[10px] uppercase tracking-[0.18em] ${
                               isUser ? "text-gray-200" : "text-cyan-300"
@@ -967,8 +1083,9 @@ ${note.content}
                           />
                         )}
 
+                        {/* ⭐ Moved suggestions slightly up inside bubble */}
                         {!isUser && (
-                          <div className="mt-4 flex flex-wrap gap-2">
+                          <div className="mt-3 pt-2 border-t border-white/10 flex flex-wrap gap-2">
                             {[
                               "Explain this more",
                               "Rewrite cleaner",
